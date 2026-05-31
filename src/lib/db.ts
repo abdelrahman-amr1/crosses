@@ -569,6 +569,32 @@ export const db = {
     `, [tenant, username]);
     return res.rows;
   },
+
+  getAllEvaluationsForLecture: async (tenant: string, lectureNumber: number): Promise<Record<string, SelfEvaluation>> => {
+    const res = await runQuery(`
+      SELECT 
+        e.id, 
+        e.username, 
+        e.lecture_number as "lectureNumber", 
+        e.understanding_rating as "understandingRating", 
+        e.effort_rating as "effortRating", 
+        e.notes, 
+        e.created_at as "createdAt"
+      FROM self_evaluations e
+      JOIN institutions i ON e.institution_id = i.id
+      WHERE i.subdomain = $1 AND e.lecture_number = $2
+      ORDER BY e.created_at DESC;
+    `, [tenant, lectureNumber]);
+    
+    // Convert to map for easy lookup by username
+    const map: Record<string, SelfEvaluation> = {};
+    for (const r of res.rows) {
+      if (!map[r.username]) {
+        map[r.username] = r; // keep the latest one
+      }
+    }
+    return map;
+  },
   
   saveEvaluation: async (tenant: string, username: string, evaluation: Omit<SelfEvaluation, "id" | "createdAt">): Promise<SelfEvaluation> => {
     // 1. Get institution id
@@ -629,7 +655,24 @@ export const db = {
     }
     return scores;
   },
-  
+
+  getAllQuizScoresForLecture: async (tenant: string, courseId: string, lectureNumber: number): Promise<Record<string, number>> => {
+    const res = await runQuery(`
+      SELECT 
+        q.username,
+        q.score
+      FROM quiz_scores q
+      JOIN institutions i ON q.institution_id = i.id
+      WHERE i.subdomain = $1 AND q.course_id = $2 AND q.lecture_number = $3;
+    `, [tenant, courseId, lectureNumber]);
+
+    const scores: Record<string, number> = {};
+    for (const r of res.rows) {
+      scores[r.username] = r.score;
+    }
+    return scores;
+  },
+
   getStudentTotalScore: async (tenant: string, username: string): Promise<number> => {
     const scores = await db.getQuizScores(tenant, username);
     return Object.values(scores).reduce((a, b) => a + b, 0) * 10;

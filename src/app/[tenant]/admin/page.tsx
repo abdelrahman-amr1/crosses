@@ -73,6 +73,8 @@ export default function TenantAdminDashboard({
 
   // Attendance state
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceEvals, setAttendanceEvals] = useState<Record<string, any>>({});
+  const [attendanceScores, setAttendanceScores] = useState<Record<string, number>>({});
   const [attendanceCourseId, setAttendanceCourseId] = useState<string>("");
   const [attendanceLectureNum, setAttendanceLectureNum] = useState<number>(1);
 
@@ -240,9 +242,15 @@ export default function TenantAdminDashboard({
   // Load attendance when tab or filters change
   useEffect(() => {
     if (activeTab === "attendance" && attendanceCourseId) {
-      db.getAttendances(params.tenant, attendanceCourseId, attendanceLectureNum)
-        .then(setAttendanceRecords)
-        .catch(console.error);
+      Promise.all([
+        db.getAttendances(params.tenant, attendanceCourseId, attendanceLectureNum),
+        db.getAllEvaluationsForLecture(params.tenant, attendanceLectureNum),
+        db.getAllQuizScoresForLecture(params.tenant, attendanceCourseId, attendanceLectureNum)
+      ]).then(([records, evals, scores]) => {
+        setAttendanceRecords(records);
+        setAttendanceEvals(evals);
+        setAttendanceScores(scores);
+      }).catch(console.error);
     }
   }, [activeTab, attendanceCourseId, attendanceLectureNum, params.tenant]);
 
@@ -1555,7 +1563,7 @@ export default function TenantAdminDashboard({
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl p-6 shadow-sm">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <Video size={20} className="text-blue-500" />
-                سجل الحضور ({attendanceRecords.length} طالب)
+                سجل الحضور والتقييمات ({attendanceRecords.length} طالب)
               </h3>
               {attendanceRecords.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -1564,19 +1572,47 @@ export default function TenantAdminDashboard({
                       <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">اسم الطالب</th>
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">الدورة</th>
-                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المحاضرة</th>
-                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">وقت وتاريخ التسجيل</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">الكويز</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">تقييم المتدرب</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400 max-w-xs">الملاحظات</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">وقت التسجيل</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {attendanceRecords.map((record) => (
-                        <tr key={record.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{record.studentName}</td>
-                          <td className="p-4 text-slate-600 dark:text-slate-400">{courses.find(c => c.id === record.courseId)?.title || "غير معروف"}</td>
-                          <td className="p-4 text-slate-600 dark:text-slate-400">{record.lectureNumber}</td>
-                          <td className="p-4 text-slate-600 dark:text-slate-400" dir="ltr">{new Date(record.createdAt).toLocaleString("ar-EG")}</td>
-                        </tr>
-                      ))}
+                      {attendanceRecords.map((record) => {
+                        const studentScore = attendanceScores[record.studentName];
+                        const studentEval = attendanceEvals[record.studentName];
+                        
+                        return (
+                          <tr key={record.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{record.studentName}</td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400">{courses.find(c => c.id === record.courseId)?.title || "غير معروف"}</td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400">
+                              {studentScore !== undefined ? (
+                                <span className="inline-block bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">
+                                  {studentScore} إجابات صحيحة
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-xs">لم يحل</span>
+                              )}
+                            </td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 text-xs">
+                              {studentEval ? (
+                                <div className="space-y-1">
+                                  <div>فهم: <span className="font-bold">{studentEval.understandingRating}/5</span></div>
+                                  <div>مجهود: <span className="font-bold">{studentEval.effortRating}/5</span></div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">لم يقيّم</span>
+                              )}
+                            </td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 text-xs max-w-xs truncate" title={studentEval?.notes || ""}>
+                              {studentEval?.notes || "-"}
+                            </td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 text-xs" dir="ltr">{new Date(record.createdAt).toLocaleString("ar-EG")}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
