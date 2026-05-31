@@ -34,6 +34,17 @@ import {
 import { db, Course, Flashcard, QuizQuestion, Student, Application, Institution } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
 
+function generateUUID(): string {
+  if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export default function TenantAdminDashboard({
   params,
 }: {
@@ -276,7 +287,7 @@ export default function TenantAdminDashboard({
 
     // 3. Create approved Student record
     const studentRecord: Student = {
-      id: `std-${Date.now()}`,
+      id: generateUUID(),
       name: app.fullName,
       email: autoEmail,
       courseId: app.courseId,
@@ -354,7 +365,7 @@ export default function TenantAdminDashboard({
       const nextRollNumber = courseStudentsCount + 1;
 
       const studentObj: Student = {
-        id: `std-${Date.now()}`,
+        id: generateUUID(),
         name: newStudent.name,
         email: newStudent.email,
         courseId: newStudent.courseId,
@@ -388,7 +399,7 @@ export default function TenantAdminDashboard({
     e.preventDefault();
     if (newCourse.title) {
       const courseObj: Course = {
-        id: `course-${Date.now()}`,
+        id: generateUUID(),
         title: newCourse.title,
         description: newCourse.description,
         price: Number(newCourse.price),
@@ -486,7 +497,7 @@ export default function TenantAdminDashboard({
     e.preventDefault();
     if (newFlashcard.question && newFlashcard.answer) {
       const cardObj: Flashcard = {
-        id: editingFlashcardId || `fc-${Date.now()}`,
+        id: editingFlashcardId || generateUUID(),
         courseId: selectedCourseId,
         lectureNumber: selectedLectureNum,
         question: newFlashcard.question,
@@ -556,7 +567,7 @@ export default function TenantAdminDashboard({
             const lectureNumber = Number(row[2]) || selectedLectureNum;
             
             return {
-              id: `fc-csv-${Date.now()}-${idx}`,
+              id: generateUUID(),
               courseId: selectedCourseId,
               lectureNumber,
               question,
@@ -582,7 +593,7 @@ export default function TenantAdminDashboard({
     e.preventDefault();
     if (newQuiz.optionA && newQuiz.optionB && newQuiz.question) {
       const quizObj: QuizQuestion = {
-        id: editingQuizId || `q-${Date.now()}`,
+        id: editingQuizId || generateUUID(),
         courseId: selectedCourseId,
         lectureNumber: selectedLectureNum,
         question: newQuiz.question,
@@ -666,7 +677,7 @@ export default function TenantAdminDashboard({
             const lectureNumber = Number(row[6]) || selectedLectureNum;
             
             return {
-              id: `q-csv-${Date.now()}-${idx}`,
+              id: generateUUID(),
               courseId: selectedCourseId,
               lectureNumber,
               question,
