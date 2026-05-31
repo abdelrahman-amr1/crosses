@@ -1,0 +1,250 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { db, Course } from "@/lib/db";
+import { User, ClipboardList, Phone, FileText, Upload, Sparkles, CheckCircle2 } from "lucide-react";
+
+export default function StudentRegistration({
+  params,
+}: {
+  params: { tenant: string };
+}) {
+  const router = useRouter();
+  const [courses, setCourses] = useState<Course[]>([]);
+  
+  // Form states
+  const [fullName, setFullName] = useState("");
+  const [nationalId, setNationalId] = useState("");
+  const [phone, setPhone] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [photoBase64, setPhotoBase64] = useState("");
+  const [photoFileName, setPhotoFileName] = useState("");
+
+  const [errorMsg, setErrorMsg] = useState("");
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const list = db.getCourses(params.tenant);
+    setCourses(list);
+    if (list.length > 0) {
+      setSelectedCourseId(list[0].id);
+    }
+  }, [params.tenant]);
+
+  // Convert uploaded image to Base64 for local persistence
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("⚠️ حجم الصورة كبير جداً. الحد الأقصى هو 2 ميجابايت.");
+        return;
+      }
+      setPhotoFileName(file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+
+    // Validation
+    const nameWords = fullName.trim().split(/\s+/);
+    if (nameWords.length < 4) {
+      setErrorMsg("⚠️ يرجى إدخال اسمك رباعياً بالكامل.");
+      return;
+    }
+
+    if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
+      setErrorMsg("⚠️ الرقم القومي يجب أن يتكون من 14 رقماً صحيحاً.");
+      return;
+    }
+
+    if (phone.length < 10 || !/^\d+$/.test(phone)) {
+      setErrorMsg("⚠️ رقم هاتف الواتساب غير صحيح.");
+      return;
+    }
+
+    if (!photoBase64) {
+      setErrorMsg("⚠️ يرجى رفع صورتك الشخصية لإتمام التسجيل.");
+      return;
+    }
+
+    setIsLoading(true);
+    setTimeout(() => {
+      db.addApplication(params.tenant, {
+        fullName,
+        nationalId,
+        phone,
+        courseId: selectedCourseId,
+        photoUrl: photoBase64
+      });
+      setIsLoading(false);
+      setIsSubmitted(true);
+    }, 1200);
+  };
+
+  if (isSubmitted) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center" dir="rtl">
+        <div className="bg-white dark:bg-slate-800 p-8 sm:p-10 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-2xl max-w-lg w-full flex flex-col items-center gap-6">
+          <div className="w-20 h-20 bg-green-50 dark:bg-slate-900 text-green-600 rounded-full flex items-center justify-center shadow-inner">
+            <CheckCircle2 size={44} />
+          </div>
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white">🎉 تم تسجيل طلبك بنجاح!</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+            أهلاً بك يا <strong>{fullName}</strong>. تم استلام طلب الالتحاق بالدورة التعليمية وهو قيد المراجعة والقبول من قبل إدارة المركز حالياً.
+          </p>
+          
+          <div className="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-4 rounded-2xl text-sm font-bold w-full text-right leading-relaxed border border-blue-100">
+            💡 <strong>ماذا سيحدث بعد الموافقة؟</strong>
+            <ul className="list-disc list-inside mt-2 space-y-1.5 font-medium">
+              <li>سيتم تحويلك فوراً وإشعارك على رقم الواتساب الخاص بك: {phone}.</li>
+              <li>ستتلقى رسالة تحتوي على إيميل الدخول وباسورد الدورة الافتراضي الخاص بك.</li>
+              <li>ستحصل على رقم كشف الدورة ورابط جروب المتدربين للمتابعة اليومية.</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={() => router.push(`/${params.tenant}`)}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-all"
+          >
+            الانتقال لصفحة دخول الطلاب
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-12 text-right" dir="rtl">
+      <div className="text-center mb-10">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 dark:text-white mb-3 flex justify-center items-center gap-2">
+          <Sparkles className="text-blue-600" size={28} /> طلب التحاق بدورة تدريبية
+        </h1>
+        <p className="text-slate-500 font-medium">املأ بياناتك بدقة للتسجيل في كورس وتفعيل حسابك تلقائياً بعد موافقة الإدارة.</p>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          
+          {/* Full Name */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <User size={16} className="text-blue-500" /> الاسم رباعياً بالكامل:
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="مثال: أحمد محمد محمود علي"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            />
+          </div>
+
+          {/* National ID */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <FileText size={16} className="text-blue-500" /> الرقم القومي (14 رقم):
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={14}
+              placeholder="29910203040506"
+              value={nationalId}
+              onChange={(e) => setNationalId(e.target.value.replace(/\D/g, ""))}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
+              dir="ltr"
+            />
+          </div>
+
+          {/* WhatsApp Mobile */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <Phone size={16} className="text-blue-500" /> رقم الموبايل (المرتبط بالواتساب):
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="01012345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
+              dir="ltr"
+            />
+          </div>
+
+          {/* Course selector */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <ClipboardList size={16} className="text-blue-500" /> اختر الدورة التي تود دراستها:
+            </label>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+            >
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title} - ({c.price} ج.م)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Photo Uploader */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <Upload size={16} className="text-blue-500" /> الصورة الشخصية للمتدرب (الشهادة والملف الشخصي):
+            </label>
+            
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 dark:border-slate-700 border-dashed rounded-2xl hover:border-blue-500 transition-all bg-slate-50 dark:bg-slate-900/50">
+              <div className="space-y-2 text-center flex flex-col items-center">
+                {photoBase64 ? (
+                  <div className="relative w-28 h-28 rounded-xl overflow-hidden border-2 border-blue-500 shadow-md">
+                    <img src={photoBase64} alt="Avatar Preview" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <Upload size={40} className="text-slate-400 mb-2" />
+                )}
+                
+                <div className="flex text-sm text-slate-600 dark:text-slate-400 font-bold">
+                  <label className="relative cursor-pointer bg-white dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-slate-200 dark:border-slate-700 hover:text-blue-500 transition-colors shadow-sm">
+                    <span>رفع ملف الصورة</span>
+                    <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                  </label>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {photoFileName ? `تم تحديد: ${photoFileName}` : "تنسيقات الصور JPG, PNG حد أقصى 2MB"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold border border-red-100">
+              {errorMsg}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-500/10 transition-all flex items-center justify-center gap-2 text-lg disabled:opacity-50"
+          >
+            {isLoading ? "جاري تسجيل طلبك..." : "إرسال طلب الالتحاق بالدورة 🚀"}
+          </button>
+
+        </form>
+      </div>
+    </div>
+  );
+}
