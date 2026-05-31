@@ -92,19 +92,107 @@ export default function TenantAdminDashboard({
   useEffect(() => {
     async function loadData() {
       try {
-        const apps = await db.getApplications(params.tenant);
+        let apps = await db.getApplications(params.tenant);
+        let stds = await db.getStudents(params.tenant);
+        let crs = await db.getCourses(params.tenant);
+        let fcs = await db.getFlashcards(params.tenant);
+        let qzs = await db.getQuizzes(params.tenant);
+        
+        // Check if client-side localStorage migration is needed
+        if (typeof window !== "undefined") {
+          const isMigratedKey = `supabase_migrated_${params.tenant}`;
+          const alreadyMigrated = localStorage.getItem(isMigratedKey);
+          
+          if (!alreadyMigrated) {
+            console.log("Checking for local storage data to migrate to Supabase...");
+            
+            // Check courses
+            const localCoursesStr = localStorage.getItem(`courses_${params.tenant}`);
+            if (localCoursesStr) {
+              const localCrs = JSON.parse(localCoursesStr) as Course[];
+              if (localCrs.length > 0 && crs.length <= 2) {
+                console.log("Migrating courses from localStorage to Supabase...");
+                await db.saveCourses(params.tenant, localCrs);
+                crs = await db.getCourses(params.tenant);
+              }
+            }
+            
+            // Check students
+            const localStudentsStr = localStorage.getItem(`students_${params.tenant}`);
+            if (localStudentsStr) {
+              const localStds = JSON.parse(localStudentsStr) as Student[];
+              if (localStds.length > 0 && stds.length <= 1) {
+                console.log("Migrating students from localStorage to Supabase...");
+                await db.saveStudents(params.tenant, localStds);
+                stds = await db.getStudents(params.tenant);
+              }
+            }
+            
+            // Check applications
+            const localAppsStr = localStorage.getItem(`applications_${params.tenant}`);
+            if (localAppsStr) {
+              const localApps = JSON.parse(localAppsStr) as Application[];
+              if (localApps.length > 0 && apps.length === 0) {
+                console.log("Migrating applications from localStorage to Supabase...");
+                await db.saveApplications(params.tenant, localApps);
+                apps = await db.getApplications(params.tenant);
+              }
+            }
+            
+            // Check flashcards
+            const localFlashcardsStr = localStorage.getItem(`flashcards_${params.tenant}`);
+            if (localFlashcardsStr) {
+              const localFcs = JSON.parse(localFlashcardsStr) as Flashcard[];
+              if (localFcs.length > 0 && fcs.length <= 44) {
+                console.log("Migrating flashcards from localStorage to Supabase...");
+                await db.saveFlashcards(params.tenant, localFcs);
+                fcs = await db.getFlashcards(params.tenant);
+              }
+            }
+            
+            // Check quizzes
+            const localQuizzesStr = localStorage.getItem(`quizzes_${params.tenant}`);
+            if (localQuizzesStr) {
+              const localQzs = JSON.parse(localQuizzesStr) as QuizQuestion[];
+              if (localQzs.length > 0 && qzs.length <= 3) {
+                console.log("Migrating quizzes from localStorage to Supabase...");
+                await db.saveQuizzes(params.tenant, localQzs);
+                qzs = await db.getQuizzes(params.tenant);
+              }
+            }
+
+            // Check institution logo and credentials in localStorage
+            const localInstListStr = localStorage.getItem("institutions_list");
+            if (localInstListStr) {
+              const list = JSON.parse(localInstListStr) as Institution[];
+              const matched = list.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+              if (matched) {
+                const insts = await db.getInstitutions();
+                const updatedInsts = insts.map(inst => {
+                  if (inst.subdomain.toLowerCase() === params.tenant.toLowerCase()) {
+                    return { 
+                      ...inst, 
+                      logoUrl: matched.logoUrl || inst.logoUrl,
+                      adminEmail: matched.adminEmail || inst.adminEmail,
+                      adminPassword: matched.adminPassword || inst.adminPassword
+                    };
+                  }
+                  return inst;
+                });
+                await db.saveInstitutions(updatedInsts);
+              }
+            }
+            
+            // Mark as migrated
+            localStorage.setItem(isMigratedKey, "true");
+            console.log("🎉 Local storage data migrated to Supabase database successfully!");
+          }
+        }
+
         setApplications(apps);
-        
-        const stds = await db.getStudents(params.tenant);
         setStudents(stds);
-        
-        const crs = await db.getCourses(params.tenant);
         setCourses(crs);
-        
-        const fcs = await db.getFlashcards(params.tenant);
         setFlashcards(fcs);
-        
-        const qzs = await db.getQuizzes(params.tenant);
         setQuizzes(qzs);
         
         const insts = await db.getInstitutions();
