@@ -29,9 +29,10 @@ import {
   ShieldCheck,
   Copy,
   Check,
-  Building
+  Building,
+  Video
 } from "lucide-react";
-import { db, Course, Flashcard, QuizQuestion, Student, Application, Institution } from "@/lib/db";
+import { db, Course, Flashcard, QuizQuestion, Student, Application, Institution, AttendanceRecord } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
 
 function generateUUID(): string {
@@ -50,7 +51,7 @@ export default function TenantAdminDashboard({
 }: {
   params: { tenant: string };
 }) {
-  const [activeTab, setActiveTab] = useState<"applications" | "students" | "courses" | "flashcards" | "quizzes">("applications");
+  const [activeTab, setActiveTab] = useState<"applications" | "students" | "courses" | "flashcards" | "quizzes" | "attendance">("applications");
 
   // Admin login states
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
@@ -68,6 +69,11 @@ export default function TenantAdminDashboard({
   const [courses, setCourses] = useState<Course[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [quizzes, setQuizzes] = useState<QuizQuestion[]>([]);
+
+  // Attendance state
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceCourseId, setAttendanceCourseId] = useState<string>("");
+  const [attendanceLectureNum, setAttendanceLectureNum] = useState<number>(1);
 
   // Filtering states
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
@@ -206,6 +212,7 @@ export default function TenantAdminDashboard({
         if (crs.length > 0) {
           setSelectedCourseId(crs[0].id);
           setNewStudent(prev => ({ ...prev, courseId: crs[0].id }));
+          setAttendanceCourseId(crs[0].id);
         }
         setFlashcards(fcs);
         setQuizzes(qzs);
@@ -228,6 +235,15 @@ export default function TenantAdminDashboard({
       }
     }
   }, [params.tenant]);
+
+  // Load attendance when tab or filters change
+  useEffect(() => {
+    if (activeTab === "attendance" && attendanceCourseId) {
+      db.getAttendances(params.tenant, attendanceCourseId, attendanceLectureNum)
+        .then(setAttendanceRecords)
+        .catch(console.error);
+    }
+  }, [activeTab, attendanceCourseId, attendanceLectureNum, params.tenant]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,18 +336,18 @@ export default function TenantAdminDashboard({
     const entryUrl = `${rootUrl}/${params.tenant}`;
 
     const whatsAppMessage = `السلام عليكم يا متدرب(ة) ${app.fullName}،
-🎉 يسعدنا إعلامك بأنه تم قبولك رسمياً في دورة "${matchedCourse.title}" بمركزنا!
+يسعدنا إعلامك بأنه تم قبولك رسمياً في دورة "${matchedCourse.title}" بمركزنا!
 
-🔑 تفاصيل حسابك على المنصة لتسجيل الدخول:
+تفاصيل حسابك على المنصة لتسجيل الدخول:
 رابط الدخول: ${entryUrl}
 البريد الإلكتروني: ${autoEmail}
 كلمة المرور: ${autoPassword} (رقم موبايلك)
 
-📌 بيانات الدورة:
+بيانات الدورة:
 رقم كشفك في الكورس: #${nextRollNumber}
 رابط جروب الواتساب المخصص للمتدربين: ${matchedCourse.whatsappGroupUrl}
 
-تمنياتنا لك بالتوفيق والنجاح! 🎓`;
+تمنياتنا لك بالتوفيق والنجاح!`;
 
     // Format phone to international format for WhatsApp API (Egypt +20)
     let whatsAppPhone = app.phone;
@@ -909,6 +925,7 @@ export default function TenantAdminDashboard({
           { id: "applications", label: "طلبات التسجيل المعلقة", icon: <ClipboardList size={16} /> },
           { id: "students", label: "الطلاب المقبولين", icon: <Users size={16} /> },
           { id: "courses", label: "الدورات والروابط ديناميكياً", icon: <BookOpen size={16} /> },
+          { id: "attendance", label: "سجل الحضور", icon: <Video size={16} /> },
           { id: "flashcards", label: "صانع الكروت (Flashcards)", icon: <BookMarked size={16} /> },
           { id: "quizzes", label: "الكويزات والامتحانات", icon: <FileText size={16} /> }
         ].map((tab) => {
@@ -1478,6 +1495,74 @@ export default function TenantAdminDashboard({
                   <PlusCircle size={16} /> إضافة دورة جديدة
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: ATTENDANCE */}
+        {activeTab === "attendance" && (
+          <div className="space-y-8">
+            <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex flex-wrap gap-4 items-center w-full md:w-auto">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-400 mb-1">اختر الكورس:</span>
+                  <select
+                    value={attendanceCourseId}
+                    onChange={(e) => setAttendanceCourseId(e.target.value)}
+                    className="px-4 py-2 border rounded-xl bg-white dark:bg-slate-800 font-bold"
+                  >
+                    {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-400 mb-1">اختر المحاضرة:</span>
+                  <select
+                    value={attendanceLectureNum}
+                    onChange={(e) => setAttendanceLectureNum(Number(e.target.value))}
+                    className="px-4 py-2 border rounded-xl bg-white dark:bg-slate-800 font-bold"
+                  >
+                    {Array.from({ length: courses.find(c => c.id === attendanceCourseId)?.lecturesCount || 12 }).map((_, idx) => (
+                      <option key={idx + 1} value={idx + 1}>المحاضرة رقم {idx + 1}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl p-6 shadow-sm">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Video size={20} className="text-blue-500" />
+                سجل الحضور ({attendanceRecords.length} طالب)
+              </h3>
+              {attendanceRecords.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">اسم الطالب</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">الدورة</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المحاضرة</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">وقت وتاريخ التسجيل</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attendanceRecords.map((record) => (
+                        <tr key={record.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{record.studentName}</td>
+                          <td className="p-4 text-slate-600 dark:text-slate-400">{courses.find(c => c.id === record.courseId)?.title || "غير معروف"}</td>
+                          <td className="p-4 text-slate-600 dark:text-slate-400">{record.lectureNumber}</td>
+                          <td className="p-4 text-slate-600 dark:text-slate-400" dir="ltr">{new Date(record.createdAt).toLocaleString("ar-EG")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-10">
+                  <Video size={48} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+                  <p className="text-slate-500 font-bold">لم يقم أي طالب بتسجيل حضوره في هذه المحاضرة حتى الآن.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

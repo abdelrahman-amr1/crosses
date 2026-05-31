@@ -83,26 +83,14 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
     loadData();
   }, [selectedLecture, course.id, tenant, studentName]);
 
-  // Handle Attendance Webhook mock
+  // Handle Attendance via DB
   const handleAttend = async () => {
     setIsAttending(true);
     try {
-      const response = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId: studentName,
-          courseId: course.id,
-          centerName: tenant,
-          lectureNumber: selectedLecture,
-        }),
-      });
-
-      if (response.ok) {
-        setAttendanceStatus(prev => ({ ...prev, [selectedLecture]: true }));
-        alert(`✅ تم تسجيل حضورك في المحاضرة رقم ${selectedLecture} بنجاح في Google Sheets! سيتم تحويلك الآن إلى البث المباشر/رابط الدرس.`);
-        window.open(course.lectureUrl || "https://zoom.us/test", "_blank");
-      }
+      await db.saveAttendance(tenant, studentName, course.id, selectedLecture);
+      setAttendanceStatus(prev => ({ ...prev, [selectedLecture]: true }));
+      alert(`✅ تم تسجيل حضورك بنجاح في قاعدة بيانات المنصة! سيتم تحويلك الآن إلى البث المباشر/رابط الدرس.`);
+      window.open(course.lectureUrl || "https://zoom.us/test", "_blank");
     } catch (error) {
       alert("حدث خطأ في الاتصال بالخادم لتسجيل الحضور.");
     } finally {
@@ -255,7 +243,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       بث المحاضرة رقم {selectedLecture}
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400 max-w-md mb-8">
-                      قم بتسجيل حضورك أولاً ليقوم النظام بنقلك لغرفة الدرس وحفظ بيانات حضورك في شيت الإكسل التابع للمشرفين.
+                      قم بتسجيل حضورك أولاً ليقوم النظام بنقلك لغرفة الدرس وحفظ بيانات حضورك في السجل الخاص بالمشرفين.
                     </p>
                     
                     {attendanceStatus[selectedLecture] ? (

@@ -62,6 +62,15 @@ export interface SelfEvaluation {
   createdAt: string;
 }
 
+export interface AttendanceRecord {
+  id: string;
+  institutionId: string;
+  studentName: string;
+  courseId: string;
+  lectureNumber: number;
+  createdAt: string;
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -231,6 +240,37 @@ export const db = {
         WHERE institution_id = $1;
       `, [instId]);
     }
+  },
+
+  // Attendance
+  saveAttendance: async (tenant: string, studentName: string, courseId: string, lectureNumber: number): Promise<void> => {
+    const instRes = await runQuery(`SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1;`, [tenant]);
+    if (instRes.rows.length === 0) return;
+    const instId = instRes.rows[0].id;
+    
+    // Use generateUUID logic on client side if needed, but since we are inside db.ts we can just let postgres generate it or we can pass an ID.
+    // Actually we don't have crypto here. Let's use gen_random_uuid() from Postgres.
+    await runQuery(`
+      INSERT INTO attendances (id, institution_id, student_name, course_id, lecture_number)
+      VALUES (gen_random_uuid(), $1, $2, $3, $4);
+    `, [instId, studentName, courseId, lectureNumber]);
+  },
+
+  getAttendances: async (tenant: string, courseId: string, lectureNumber: number): Promise<AttendanceRecord[]> => {
+    const res = await runQuery(`
+      SELECT 
+        a.id, 
+        a.institution_id as "institutionId", 
+        a.student_name as "studentName", 
+        a.course_id as "courseId", 
+        a.lecture_number as "lectureNumber", 
+        a.created_at as "createdAt"
+      FROM attendances a
+      JOIN institutions i ON a.institution_id = i.id
+      WHERE i.subdomain = $1 AND a.course_id = $2 AND a.lecture_number = $3
+      ORDER BY a.created_at DESC;
+    `, [tenant, courseId, lectureNumber]);
+    return res.rows;
   },
 
   // Flashcards
