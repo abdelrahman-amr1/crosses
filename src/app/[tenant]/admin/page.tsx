@@ -144,9 +144,16 @@ export default function TenantAdminDashboard({
     const courseStudentsCount = students.filter(s => s.courseId === app.courseId).length;
     const nextRollNumber = courseStudentsCount + 1;
 
-    // 2. Generate clean login email (using name and last digits of mobile)
-    const englishNameSegment = app.fullName.replace(/\s+/g, "_");
-    const autoEmail = `${englishNameSegment.substring(0, 12)}_${app.phone.slice(-4)}@${params.tenant}.com`;
+    // 2. Generate clean login email (using last 4 digits of mobile, e.g. 7078@samarsamerlawyer.com)
+    let autoEmail = `${app.phone.slice(-4)}@${params.tenant}.com`;
+    const emailExists = (email: string) => students.some(s => s.email.toLowerCase() === email.toLowerCase());
+    if (emailExists(autoEmail)) {
+      let counter = 2;
+      while (emailExists(`${app.phone.slice(-4)}_${counter}@${params.tenant}.com`)) {
+        counter++;
+      }
+      autoEmail = `${app.phone.slice(-4)}_${counter}@${params.tenant}.com`;
+    }
     const autoPassword = app.phone; // default password is mobile number
 
     // 3. Create approved Student record
@@ -173,12 +180,20 @@ export default function TenantAdminDashboard({
     setApplications(updatedApps);
     db.saveApplications(params.tenant, updatedApps);
 
-    // 5. Construct official WhatsApp Message
+    // 5. Construct official WhatsApp Message with dynamic entry URL based on hosting
+    const rootUrl = typeof window !== "undefined" ? window.location.origin : `http://${params.tenant}.localhost:3000`;
+    let entryUrl = rootUrl;
+    if (rootUrl.includes("localhost")) {
+      entryUrl = `http://${params.tenant}.localhost:3000`;
+    } else {
+      entryUrl = `${rootUrl}/${params.tenant}`;
+    }
+
     const whatsAppMessage = `السلام عليكم يا متدرب(ة) ${app.fullName}،
 🎉 يسعدنا إعلامك بأنه تم قبولك رسمياً في دورة "${matchedCourse.title}" بمركزنا!
 
 🔑 تفاصيل حسابك على المنصة لتسجيل الدخول:
-رابط الدخول: http://${params.tenant}.localhost:3000
+رابط الدخول: ${entryUrl}
 البريد الإلكتروني: ${autoEmail}
 كلمة المرور: ${autoPassword} (رقم موبايلك)
 
