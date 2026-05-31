@@ -15,11 +15,12 @@ export default function TenantLayout({
   const [institution, setInstitution] = useState<Institution | null>(null);
 
   useEffect(() => {
-    const list = db.getInstitutions();
-    const current = list.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
-    if (current) {
-      setInstitution(current);
-    }
+    db.getInstitutions().then(list => {
+      const current = list.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+      if (current) {
+        setInstitution(current);
+      }
+    }).catch(console.error);
   }, [params.tenant]);
 
   // Handle student logout

@@ -17,47 +17,56 @@ export default function Leaderboard({ tenant, currentStudentName }: { tenant: st
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
-    const allStudents = db.getStudents(tenant);
-    const courses = db.getCourses(tenant);
+    async function fetchLeaderboard() {
+      try {
+        const allStudents = await db.getStudents(tenant);
+        const courses = await db.getCourses(tenant);
 
-    // Mock scores for other students to make the leaderboard look active and premium
-    const mockScores: Record<string, number> = {
-      "std-1": 95, // أحمد محمود
-      "std-default-1": 90,
-      "std-default-2": 85,
-      "std-default-3": 75,
-    };
+        // Mock scores for other students to make the leaderboard look active and premium
+        const mockScores: Record<string, number> = {
+          "std-1": 95, // أحمد محمود
+          "std-default-1": 90,
+          "std-default-2": 85,
+          "std-default-3": 75,
+        };
 
-    // Construct leaderboard entries
-    let entries: LeaderboardEntry[] = allStudents.map((std, idx) => {
-      const course = courses.find((c) => c.id === std.courseId);
-      // Retrieve real score from database
-      const realScore = db.getStudentTotalScore(tenant, std.name);
-      // Current student gets 100% real score, others get real score if any, fallback to mock score
-      const score = (std.name.trim().toLowerCase() === currentStudentName.trim().toLowerCase())
-        ? realScore
-        : (realScore > 0 ? realScore : (mockScores[std.id] || 45 + (idx * 9) % 35));
-      
-      return {
-        rank: 0,
-        name: std.name,
-        avatarUrl: std.avatarUrl,
-        rollNumber: std.rollNumber || (idx + 1),
-        score,
-        courseTitle: course?.title || "دورة برمجة الويب"
-      };
-    });
+        // Construct leaderboard entries
+        let entries: LeaderboardEntry[] = [];
+        for (let idx = 0; idx < allStudents.length; idx++) {
+          const std = allStudents[idx];
+          const course = courses.find((c) => c.id === std.courseId);
+          // Retrieve real score from database
+          const realScore = await db.getStudentTotalScore(tenant, std.name);
+          // Current student gets 100% real score, others get real score if any, fallback to mock score
+          const score = (std.name.trim().toLowerCase() === currentStudentName.trim().toLowerCase())
+            ? realScore
+            : (realScore > 0 ? realScore : (mockScores[std.id] || 45 + (idx * 9) % 35));
+          
+          entries.push({
+            rank: 0,
+            name: std.name,
+            avatarUrl: std.avatarUrl,
+            rollNumber: std.rollNumber || (idx + 1),
+            score,
+            courseTitle: course?.title || "دورة برمجة الويب"
+          });
+        }
 
-    // Sort by score descending
-    entries.sort((a, b) => b.score - a.score);
+        // Sort by score descending
+        entries.sort((a, b) => b.score - a.score);
 
-    // Assign rank numbers
-    entries = entries.map((entry, idx) => ({
-      ...entry,
-      rank: idx + 1
-    }));
+        // Assign rank numbers
+        entries = entries.map((entry, idx) => ({
+          ...entry,
+          rank: idx + 1
+        }));
 
-    setLeaderboard(entries);
+        setLeaderboard(entries);
+      } catch (e) {
+        console.error("Failed to load leaderboard:", e);
+      }
+    }
+    fetchLeaderboard();
   }, [tenant, currentStudentName]);
 
   const getRankBadge = (rank: number) => {

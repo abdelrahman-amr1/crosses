@@ -16,7 +16,9 @@ export default function FlashcardsBuilder({
   const [selectedLecture, setSelectedLecture] = useState(1);
 
   useEffect(() => {
-    setCards(db.getFlashcards(params.tenant, selectedCourseId, selectedLecture));
+    db.getFlashcards(params.tenant, selectedCourseId, selectedLecture)
+      .then(setCards)
+      .catch(console.error);
   }, [selectedCourseId, selectedLecture, params.tenant]);
 
   const addCard = () => {
@@ -35,13 +37,13 @@ export default function FlashcardsBuilder({
     setCards(cards.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
-  const handleSave = () => {
-    const allCards = db.getFlashcards(params.tenant);
+  const handleSave = async () => {
+    const allCards = await db.getFlashcards(params.tenant);
     // Remove old cards of this course & lecture, then insert new ones
     const filtered = allCards.filter(c => !(c.courseId === selectedCourseId && c.lectureNumber === selectedLecture));
     const merged = [...filtered, ...cards.filter(c => c.question && c.answer)];
     
-    db.saveFlashcards(params.tenant, merged);
+    await db.saveFlashcards(params.tenant, merged);
     alert("✅ تم حفظ بطاقات المحاضرة الحالية بنجاح في قاعدة البيانات!");
   };
 

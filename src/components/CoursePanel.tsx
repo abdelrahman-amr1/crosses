@@ -52,27 +52,35 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
 
   // Load data for the selected lecture
   useEffect(() => {
-    const cards = db.getFlashcards(tenant, course.id, selectedLecture);
-    const quiz = db.getQuizzes(tenant, course.id, selectedLecture);
-    setFlashcards(cards);
-    setQuizQuestions(quiz);
+    async function loadData() {
+      try {
+        const cards = await db.getFlashcards(tenant, course.id, selectedLecture);
+        const quiz = await db.getQuizzes(tenant, course.id, selectedLecture);
+        setFlashcards(cards);
+        setQuizQuestions(quiz);
 
-    // Reset quiz state for the new lecture
-    setQuizAnswers({});
-    setQuizSubmitted(false);
-    setQuizScore(0);
+        // Reset quiz state for the new lecture
+        setQuizAnswers({});
+        setQuizSubmitted(false);
+        setQuizScore(0);
 
-    // Reset eval form
-    setUnderstandingRating(5);
-    setEffortRating(5);
-    setEvalNotes("");
-    setEvalSuccessMsg("");
+        // Reset eval form
+        setUnderstandingRating(5);
+        setEffortRating(5);
+        setEvalNotes("");
+        setEvalSuccessMsg("");
 
-    // Load evaluation history
-    const history = db.getEvaluations(tenant, studentName).filter(
-      ev => ev.lectureNumber === selectedLecture
-    );
-    setEvalHistory(history);
+        // Load evaluation history
+        const allEvals = await db.getEvaluations(tenant, studentName);
+        const history = allEvals.filter(
+          ev => ev.lectureNumber === selectedLecture
+        );
+        setEvalHistory(history);
+      } catch (err) {
+        console.error("Failed to load lecture data:", err);
+      }
+    }
+    loadData();
   }, [selectedLecture, course.id, tenant, studentName]);
 
   // Handle Attendance Webhook mock
@@ -103,7 +111,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
   };
 
   // Handle Quiz Submission
-  const handleQuizSubmit = () => {
+  const handleQuizSubmit = async () => {
     let score = 0;
     quizQuestions.forEach((q) => {
       if (quizAnswers[q.id] === q.correctOption) {
@@ -112,27 +120,36 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
     });
     setQuizScore(score);
     setQuizSubmitted(true);
-    db.saveQuizScore(tenant, studentName, course.id, selectedLecture, score);
+    try {
+      await db.saveQuizScore(tenant, studentName, course.id, selectedLecture, score);
+    } catch (err) {
+      console.error("Failed to save quiz score:", err);
+    }
   };
 
   // Handle Self Evaluation Submit
-  const handleEvalSubmit = (e: React.FormEvent) => {
+  const handleEvalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    db.saveEvaluation(tenant, studentName, {
-      username: studentName,
-      lectureNumber: selectedLecture,
-      understandingRating,
-      effortRating,
-      notes: evalNotes
-    });
-    
-    // Reload evaluation history
-    const history = db.getEvaluations(tenant, studentName).filter(
-      ev => ev.lectureNumber === selectedLecture
-    );
-    setEvalHistory(history);
-    setEvalSuccessMsg("🎉 تم حفظ تقييمك لمستواك بنجاح! استمر في التقدم.");
-    setEvalNotes("");
+    try {
+      await db.saveEvaluation(tenant, studentName, {
+        username: studentName,
+        lectureNumber: selectedLecture,
+        understandingRating,
+        effortRating,
+        notes: evalNotes
+      });
+      
+      // Reload evaluation history
+      const allEvals = await db.getEvaluations(tenant, studentName);
+      const history = allEvals.filter(
+        ev => ev.lectureNumber === selectedLecture
+      );
+      setEvalHistory(history);
+      setEvalSuccessMsg("🎉 تم حفظ تقييمك لمستواك بنجاح! استمر في التقدم.");
+      setEvalNotes("");
+    } catch (err) {
+      console.error("Failed to save evaluation:", err);
+    }
   };
 
   return (

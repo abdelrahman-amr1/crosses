@@ -35,7 +35,9 @@ export default function SuperAdminPortal() {
   } | null>(null);
 
   useEffect(() => {
-    setInstitutions(db.getInstitutions());
+    db.getInstitutions().then(list => {
+      setInstitutions(list);
+    }).catch(console.error);
     if (typeof window !== "undefined") {
       const logged = sessionStorage.getItem("superadmin_logged");
       if (logged === "true") {
@@ -62,7 +64,7 @@ export default function SuperAdminPortal() {
     setSuperPassword("");
   };
 
-  const handleCreateCenter = (e: React.FormEvent) => {
+  const handleCreateCenter = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccessMsg("");
     setErrorMsg("");
@@ -80,40 +82,44 @@ export default function SuperAdminPortal() {
       return;
     }
 
-    // Check uniqueness
-    const all = db.getInstitutions();
-    const exists = all.find(inst => inst.subdomain === cleanSubdomain);
-    if (exists) {
-      setErrorMsg("⚠️ هذا الرابط الفرعي مستخدم بالفعل لمركز آخر. يرجى اختيار اسم آخر.");
-      return;
+    try {
+      // Check uniqueness
+      const all = await db.getInstitutions();
+      const exists = all.find(inst => inst.subdomain === cleanSubdomain);
+      if (exists) {
+        setErrorMsg("⚠️ هذا الرابط الفرعي مستخدم بالفعل لمركز آخر. يرجى اختيار اسم آخر.");
+        return;
+      }
+
+      // Create Institution with custom/default admin credentials
+      const finalAdminEmail = adminEmail.trim() || `admin@${cleanSubdomain}.com`;
+      const finalAdminPass = adminPassword.trim() || `admin_${cleanSubdomain}`;
+      const newInst = await db.addInstitution(name, cleanSubdomain, logoUrl, finalAdminEmail, finalAdminPass);
+      setInstitutions([...all, newInst]);
+      
+      // Clear Form
+      setName("");
+      setSubdomain("");
+      setLogoUrl("");
+      setAdminEmail("");
+      setAdminPassword("");
+
+      // Generate dynamic links for preview
+      const rootUrl = typeof window !== "undefined" ? window.location.origin : "https://crosses-one.vercel.app";
+      const links = {
+        admin: `${rootUrl}/${cleanSubdomain}/admin`,
+        student: `${rootUrl}/${cleanSubdomain}`,
+        register: `${rootUrl}/${cleanSubdomain}/register`,
+        name: newInst.name,
+        adminEmail: finalAdminEmail,
+        adminPassword: finalAdminPass
+      };
+      
+      setCreatedTenantLinks(links);
+      setSuccessMsg(`🎉 تم إنشاء وتأسيس مركز "${newInst.name}" بنجاح!`);
+    } catch (err: any) {
+      setErrorMsg(`⚠️ فشل إنشاء المركز: ${err.message || err}`);
     }
-
-    // Create Institution with custom/default admin credentials
-    const finalAdminEmail = adminEmail.trim() || `admin@${cleanSubdomain}.com`;
-    const finalAdminPass = adminPassword.trim() || `admin_${cleanSubdomain}`;
-    const newInst = db.addInstitution(name, cleanSubdomain, logoUrl, finalAdminEmail, finalAdminPass);
-    setInstitutions([...all, newInst]);
-    
-    // Clear Form
-    setName("");
-    setSubdomain("");
-    setLogoUrl("");
-    setAdminEmail("");
-    setAdminPassword("");
-
-    // Generate dynamic links for preview
-    const rootUrl = typeof window !== "undefined" ? window.location.origin : "https://crosses-one.vercel.app";
-    const links = {
-      admin: `${rootUrl}/${cleanSubdomain}/admin`,
-      student: `${rootUrl}/${cleanSubdomain}`,
-      register: `${rootUrl}/${cleanSubdomain}/register`,
-      name: newInst.name,
-      adminEmail: finalAdminEmail,
-      adminPassword: finalAdminPass
-    };
-    
-    setCreatedTenantLinks(links);
-    setSuccessMsg(`🎉 تم إنشاء وتأسيس مركز "${newInst.name}" بنجاح!`);
   };
 
   // 1. Render Login Screen if not logged in

@@ -27,11 +27,12 @@ export default function TenantStudentPortal({
   // Load configuration on mount
   useEffect(() => {
     // Fetch current institution info
-    const insts = db.getInstitutions();
-    const current = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
-    if (current) {
-      setInstitution(current);
-    }
+    db.getInstitutions().then(insts => {
+      const current = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+      if (current) {
+        setInstitution(current);
+      }
+    }).catch(console.error);
 
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
@@ -49,13 +50,14 @@ export default function TenantStudentPortal({
   useEffect(() => {
     if (isLoggedIn && student) {
       // Fetch latest courses from DB (synced with admin edits)
-      const courses = db.getCourses(params.tenant);
-      const studentCourses = courses.filter(c => c.id === student.courseId);
-      setAvailableCourses(studentCourses.length > 0 ? studentCourses : courses);
+      db.getCourses(params.tenant).then(courses => {
+        const studentCourses = courses.filter(c => c.id === student.courseId);
+        setAvailableCourses(studentCourses.length > 0 ? studentCourses : courses);
+      }).catch(console.error);
     }
   }, [isLoggedIn, student, params.tenant]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
 
@@ -64,27 +66,31 @@ export default function TenantStudentPortal({
       return;
     }
 
-    // Find student in local storage DB
-    const allStudents = db.getStudents(params.tenant);
-    const found = allStudents.find(
-      (s) =>
-        s.name.trim().toLowerCase() === username.trim().toLowerCase() ||
-        s.email.trim().toLowerCase() === username.trim().toLowerCase()
-    );
+    try {
+      // Find student in Supabase
+      const allStudents = await db.getStudents(params.tenant);
+      const found = allStudents.find(
+        (s) =>
+          s.name.trim().toLowerCase() === username.trim().toLowerCase() ||
+          s.email.trim().toLowerCase() === username.trim().toLowerCase()
+      );
 
-    if (found) {
-      // Check password (mobile number check)
-      if (password && found.phone !== password) {
-        setLoginError("⚠️ كلمة المرور (رقم الموبايل) غير صحيحة.");
-        return;
+      if (found) {
+        // Check password (mobile number check)
+        if (password && found.phone !== password) {
+          setLoginError("⚠️ كلمة المرور (رقم الموبايل) غير صحيحة.");
+          return;
+        }
+
+        setIsLoggedIn(true);
+        setStudent(found);
+        setAvatarPreview(found.avatarUrl || "");
+        localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(found));
+      } else {
+        setLoginError("⚠️ الطالب غير مسجل أو لم تتم الموافقة على طلبه بعد. يمكنك تقديم طلب التحاق بالأسفل.");
       }
-
-      setIsLoggedIn(true);
-      setStudent(found);
-      setAvatarPreview(found.avatarUrl || "");
-      localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(found));
-    } else {
-      setLoginError("⚠️ الطالب غير مسجل أو لم تتم الموافقة على طلبه بعد. يمكنك تقديم طلب التحاق بالأسفل.");
+    } catch (err: any) {
+      setLoginError(`⚠️ حدث خطأ أثناء تسجيل الدخول: ${err.message || err}`);
     }
   };
 
@@ -107,31 +113,41 @@ export default function TenantStudentPortal({
         const compressed = await compressBase64(rawBase64);
         setAvatarPreview(compressed);
 
-        // Update student in database
-        const allStudents = db.getStudents(params.tenant);
-        const updated = allStudents.map((s) =>
-          s.id === student.id ? { ...s, avatarUrl: compressed } : s
-        );
-        db.saveStudents(params.tenant, updated);
+        try {
+          // Update student in database
+          const allStudents = await db.getStudents(params.tenant);
+          const updated = allStudents.map((s) =>
+            s.id === student.id ? { ...s, avatarUrl: compressed } : s
+          );
+          await db.saveStudents(params.tenant, updated);
 
-        // Update current student state
-        const updatedStudent = { ...student, avatarUrl: compressed };
-        setStudent(updatedStudent);
-        localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(updatedStudent));
+          // Update current student state
+          const updatedStudent = { ...student, avatarUrl: compressed };
+          setStudent(updatedStudent);
+          localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(updatedStudent));
+        } catch (err) {
+          console.error("Failed to update avatar:", err);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const handleSelectCourse = async (course: Course) => {
+    try {
+      const latestCourses = await db.getCourses(params.tenant);
+      const syncedCourse = latestCourses.find(c => c.id === course.id) || course;
+      setSelectedCourse(syncedCourse);
+    } catch (e) {
+      setSelectedCourse(course);
+    }
+  };
+
   if (isLoggedIn && student) {
     if (selectedCourse) {
-      // Sync selected course with newest link from Admin before entering
-      const latestCourses = db.getCourses(params.tenant);
-      const syncedCourse = latestCourses.find(c => c.id === selectedCourse.id) || selectedCourse;
-      
       return (
         <CoursePanel
-          course={syncedCourse}
+          course={selectedCourse}
           tenant={params.tenant}
           studentName={student.name}
           onBack={() => setSelectedCourse(null)}
@@ -225,7 +241,7 @@ export default function TenantStudentPortal({
                     </div>
 
                     <button
-                      onClick={() => setSelectedCourse(c)}
+                      onClick={() => handleSelectCourse(c)}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-colors flex items-center justify-center gap-2"
                     >
                       <span>دخول الكورس والتعلم 🚀</span>

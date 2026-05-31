@@ -27,11 +27,12 @@ export default function StudentRegistration({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const list = db.getCourses(params.tenant);
-    setCourses(list);
-    if (list.length > 0) {
-      setSelectedCourseId(list[0].id);
-    }
+    db.getCourses(params.tenant).then(list => {
+      setCourses(list);
+      if (list.length > 0) {
+        setSelectedCourseId(list[0].id);
+      }
+    }).catch(console.error);
   }, [params.tenant]);
 
   // Convert uploaded image to Base64 for local persistence
@@ -49,7 +50,7 @@ export default function StudentRegistration({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
@@ -76,8 +77,8 @@ export default function StudentRegistration({
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      db.addApplication(params.tenant, {
+    try {
+      await db.addApplication(params.tenant, {
         fullName,
         nationalId,
         phone,
@@ -86,7 +87,10 @@ export default function StudentRegistration({
       });
       setIsLoading(false);
       setIsSubmitted(true);
-    }, 1200);
+    } catch (err: any) {
+      setErrorMsg(`⚠️ فشل إرسال الطلب: ${err.message || err}`);
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {

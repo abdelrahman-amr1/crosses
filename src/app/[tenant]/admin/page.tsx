@@ -90,17 +90,33 @@ export default function TenantAdminDashboard({
 
   // Load database on mount
   useEffect(() => {
-    setApplications(db.getApplications(params.tenant));
-    setStudents(db.getStudents(params.tenant));
-    setCourses(db.getCourses(params.tenant));
-    setFlashcards(db.getFlashcards(params.tenant));
-    setQuizzes(db.getQuizzes(params.tenant));
-    
-    const insts = db.getInstitutions();
-    const inst = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
-    if (inst) {
-      setCurrentInstitution(inst);
+    async function loadData() {
+      try {
+        const apps = await db.getApplications(params.tenant);
+        setApplications(apps);
+        
+        const stds = await db.getStudents(params.tenant);
+        setStudents(stds);
+        
+        const crs = await db.getCourses(params.tenant);
+        setCourses(crs);
+        
+        const fcs = await db.getFlashcards(params.tenant);
+        setFlashcards(fcs);
+        
+        const qzs = await db.getQuizzes(params.tenant);
+        setQuizzes(qzs);
+        
+        const insts = await db.getInstitutions();
+        const inst = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+        if (inst) {
+          setCurrentInstitution(inst);
+        }
+      } catch (err) {
+        console.error("Error loading admin data:", err);
+      }
     }
+    loadData();
 
     if (typeof window !== "undefined") {
       const logged = sessionStorage.getItem(`admin_logged_${params.tenant}`);
@@ -110,23 +126,27 @@ export default function TenantAdminDashboard({
     }
   }, [params.tenant]);
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdminLoginError("");
 
-    const institutions = db.getInstitutions();
-    const currentCenter = institutions.find(inst => inst.subdomain.toLowerCase() === params.tenant.toLowerCase());
-    const correctEmail = currentCenter?.adminEmail || `admin@${params.tenant}.com`;
-    const correctPassword = currentCenter?.adminPassword || `admin_${params.tenant}`;
+    try {
+      const institutions = await db.getInstitutions();
+      const currentCenter = institutions.find(inst => inst.subdomain.toLowerCase() === params.tenant.toLowerCase());
+      const correctEmail = currentCenter?.adminEmail || `admin@${params.tenant}.com`;
+      const correctPassword = currentCenter?.adminPassword || `admin_${params.tenant}`;
 
-    if (
-      adminEmailInput.trim().toLowerCase() === correctEmail.toLowerCase() &&
-      adminPasswordInput === correctPassword
-    ) {
-      setIsAdminLoggedIn(true);
-      sessionStorage.setItem(`admin_logged_${params.tenant}`, "true");
-    } else {
-      setAdminLoginError("⚠️ البريد الإلكتروني أو كلمة المرور غير صحيحة!");
+      if (
+        adminEmailInput.trim().toLowerCase() === correctEmail.toLowerCase() &&
+        adminPasswordInput === correctPassword
+      ) {
+        setIsAdminLoggedIn(true);
+        sessionStorage.setItem(`admin_logged_${params.tenant}`, "true");
+      } else {
+        setAdminLoginError("⚠️ البريد الإلكتروني أو كلمة المرور غير صحيحة!");
+      }
+    } catch (err) {
+      setAdminLoginError("⚠️ حدث خطأ أثناء الاتصال بقاعدة البيانات.");
     }
   };
 
@@ -146,7 +166,7 @@ export default function TenantAdminDashboard({
   };
 
   // Student Applications Approval Workflow
-  const handleApproveApp = (app: Application) => {
+  const handleApproveApp = async (app: Application) => {
     const matchedCourse = courses.find(c => c.id === app.courseId);
     if (!matchedCourse) return;
 
@@ -183,12 +203,12 @@ export default function TenantAdminDashboard({
     // 4. Save to lists
     const updatedStudents = [...students, studentRecord];
     setStudents(updatedStudents);
-    db.saveStudents(params.tenant, updatedStudents);
+    await db.saveStudents(params.tenant, updatedStudents);
 
     // Update application status
     const updatedApps = applications.map(a => a.id === app.id ? { ...a, status: "approved" as const } : a);
     setApplications(updatedApps);
-    db.saveApplications(params.tenant, updatedApps);
+    await db.saveApplications(params.tenant, updatedApps);
 
     // 5. Construct official WhatsApp Message with dynamic entry URL based on hosting
     const rootUrl = typeof window !== "undefined" && !window.location.origin.includes("localhost")
@@ -226,17 +246,17 @@ export default function TenantAdminDashboard({
 🔗 تم فتح الواتساب لإشعار الطالب بالرسالة الرسمية.`);
   };
 
-  const handleRejectApp = (app: Application) => {
+  const handleRejectApp = async (app: Application) => {
     if (confirm(`هل تريد رفض طلب التحاق الطالب "${app.fullName}"؟`)) {
       const updatedApps = applications.map(a => a.id === app.id ? { ...a, status: "rejected" as const } : a);
       setApplications(updatedApps);
-      db.saveApplications(params.tenant, updatedApps);
+      await db.saveApplications(params.tenant, updatedApps);
       showAlert("🗑️ تم رفض طلب الالتحاق وحفظ الحالة.");
     }
   };
 
   // Student management (Manual creation)
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newStudent.name && newStudent.email) {
       const matchedCourse = courses.find(c => c.id === newStudent.courseId);
@@ -259,24 +279,24 @@ export default function TenantAdminDashboard({
       
       const updated = [...students, studentObj];
       setStudents(updated);
-      db.saveStudents(params.tenant, updated);
+      await db.saveStudents(params.tenant, updated);
       setNewStudent({ name: "", email: "", courseId: "web-dev" });
       
       showAlert(`✅ تم إنشاء حساب الطالب بنجاح! رقم كشفه: #${nextRollNumber}`);
     }
   };
 
-  const handleDeleteStudent = (id: string) => {
+  const handleDeleteStudent = async (id: string) => {
     if (confirm("هل تريد حذف هذا الطالب وحجزه؟")) {
       const updated = students.filter(s => s.id !== id);
       setStudents(updated);
-      db.saveStudents(params.tenant, updated);
+      await db.saveStudents(params.tenant, updated);
       showAlert("🗑️ تم حذف الطالب بنجاح.");
     }
   };
 
   // Course management & Editing Links
-  const handleAddCourse = (e: React.FormEvent) => {
+  const handleAddCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newCourse.title) {
       const courseObj: Course = {
@@ -292,7 +312,7 @@ export default function TenantAdminDashboard({
 
       const updated = [...courses, courseObj];
       setCourses(updated);
-      db.saveCourses(params.tenant, updated);
+      await db.saveCourses(params.tenant, updated);
       setNewCourse({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
       showAlert(`✅ تم إضافة الدورة التعليمية "${courseObj.title}" بنجاح.`);
     }
@@ -311,7 +331,7 @@ export default function TenantAdminDashboard({
     });
   };
 
-  const handleSaveCourseLinks = () => {
+  const handleSaveCourseLinks = async () => {
     if (editingCourseId) {
       const updated = courses.map(c => 
         c.id === editingCourseId 
@@ -328,17 +348,17 @@ export default function TenantAdminDashboard({
           : c
       );
       setCourses(updated);
-      db.saveCourses(params.tenant, updated);
+      await db.saveCourses(params.tenant, updated);
       setEditingCourseId(null);
       showAlert("✅ تم تحديث بيانات الدورة التدريبية بنجاح! (انعكس لدى جميع المتدربين حالاً)");
     }
   };
 
-  const handleDeleteCourse = (id: string) => {
+  const handleDeleteCourse = async (id: string) => {
     if (confirm("⚠️ هل أنت متأكد من رغبتك في حذف هذه الدورة التدريبية بالكامل؟ سيؤدي ذلك لحذفها لدى جميع المتدربين.")) {
       const updated = courses.filter(c => c.id !== id);
       setCourses(updated);
-      db.saveCourses(params.tenant, updated);
+      await db.saveCourses(params.tenant, updated);
       showAlert("🗑️ تم حذف الدورة التدريبية بنجاح.");
     }
   };
@@ -374,7 +394,7 @@ export default function TenantAdminDashboard({
   };
 
   // Flashcards management
-  const handleAddFlashcard = (e: React.FormEvent) => {
+  const handleAddFlashcard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newFlashcard.question && newFlashcard.answer) {
       const cardObj: Flashcard = {
@@ -395,7 +415,7 @@ export default function TenantAdminDashboard({
       }
 
       setFlashcards(updated);
-      db.saveFlashcards(params.tenant, updated);
+      await db.saveFlashcards(params.tenant, updated);
       setNewFlashcard({ question: "", answer: "", difficulty: "medium" });
       showAlert("✅ تم حفظ البطاقة التعليمية.");
     }
@@ -410,20 +430,20 @@ export default function TenantAdminDashboard({
     });
   };
 
-  const handleDeleteFlashcard = (id: string) => {
+  const handleDeleteFlashcard = async (id: string) => {
     if (confirm("هل تريد حذف هذه البطاقة؟")) {
       const updated = flashcards.filter(c => c.id !== id);
       setFlashcards(updated);
-      db.saveFlashcards(params.tenant, updated);
+      await db.saveFlashcards(params.tenant, updated);
       showAlert("🗑️ تم حذف البطاقة.");
     }
   };
 
-  const handleDeleteAllFlashcards = () => {
+  const handleDeleteAllFlashcards = async () => {
     if (confirm("⚠️ هل أنت متأكد من رغبتك في حذف جميع الكروت لهذه المحاضرة بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) {
       const updated = flashcards.filter(c => !(c.courseId === selectedCourseId && c.lectureNumber === selectedLectureNum));
       setFlashcards(updated);
-      db.saveFlashcards(params.tenant, updated);
+      await db.saveFlashcards(params.tenant, updated);
       showAlert("🗑️ تم حذف جميع الكروت لهذه المحاضرة بنجاح.");
     }
   };
@@ -433,7 +453,7 @@ export default function TenantAdminDashboard({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const text = event.target?.result as string;
         try {
           const parsed = parseCSV(text);
@@ -459,7 +479,7 @@ export default function TenantAdminDashboard({
 
           const updated = [...flashcards, ...newCards];
           setFlashcards(updated);
-          db.saveFlashcards(params.tenant, updated);
+          await db.saveFlashcards(params.tenant, updated);
           showAlert(`✅ تم استيراد ${newCards.length} بطاقة تعليمية من ملف CSV بنجاح!`);
         } catch (err) {
           alert("حدث خطأ أثناء قراءة ملف الـ CSV. تأكد من مطابقة التنسيق.");
@@ -470,7 +490,7 @@ export default function TenantAdminDashboard({
   };
 
   // Quizzes management
-  const handleAddQuiz = (e: React.FormEvent) => {
+  const handleAddQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newQuiz.optionA && newQuiz.optionB && newQuiz.question) {
       const quizObj: QuizQuestion = {
@@ -491,7 +511,7 @@ export default function TenantAdminDashboard({
       }
 
       setQuizzes(updated);
-      db.saveQuizzes(params.tenant, updated);
+      await db.saveQuizzes(params.tenant, updated);
       setNewQuiz({
         question: "",
         optionA: "",
@@ -516,20 +536,20 @@ export default function TenantAdminDashboard({
     });
   };
 
-  const handleDeleteQuiz = (id: string) => {
+  const handleDeleteQuiz = async (id: string) => {
     if (confirm("هل تريد حذف هذا السؤال؟")) {
       const updated = quizzes.filter(q => q.id !== id);
       setQuizzes(updated);
-      db.saveQuizzes(params.tenant, updated);
+      await db.saveQuizzes(params.tenant, updated);
       showAlert("🗑️ تم حذف السؤال.");
     }
   };
 
-  const handleDeleteAllQuizzes = () => {
+  const handleDeleteAllQuizzes = async () => {
     if (confirm("⚠️ هل أنت متأكد من رغبتك في حذف جميع الأسئلة لهذه المحاضرة بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) {
       const updated = quizzes.filter(q => !(q.courseId === selectedCourseId && q.lectureNumber === selectedLectureNum));
       setQuizzes(updated);
-      db.saveQuizzes(params.tenant, updated);
+      await db.saveQuizzes(params.tenant, updated);
       showAlert("🗑️ تم حذف جميع الأسئلة لهذه المحاضرة بنجاح.");
     }
   };
@@ -539,7 +559,7 @@ export default function TenantAdminDashboard({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const text = event.target?.result as string;
         try {
           const parsed = parseCSV(text);
@@ -569,7 +589,7 @@ export default function TenantAdminDashboard({
 
           const updated = [...quizzes, ...newQuizzesList];
           setQuizzes(updated);
-          db.saveQuizzes(params.tenant, updated);
+          await db.saveQuizzes(params.tenant, updated);
           showAlert(`✅ تم استيراد ${newQuizzesList.length} سؤال كويز من ملف CSV بنجاح!`);
         } catch (err) {
           alert("حدث خطأ أثناء قراءة ملف الـ CSV. تأكد من مطابقة التنسيق.");
@@ -705,14 +725,14 @@ export default function TenantAdminDashboard({
                     const base64 = event.target?.result as string;
                     const compressed = await compressBase64(base64, 250, 250, 0.75);
                     
-                    const insts = db.getInstitutions();
+                    const insts = await db.getInstitutions();
                     const updated = insts.map(inst => {
                       if (inst.subdomain.toLowerCase() === params.tenant.toLowerCase()) {
                         return { ...inst, logoUrl: compressed };
                       }
                       return inst;
                     });
-                    db.saveInstitutions(updated);
+                    await db.saveInstitutions(updated);
                     const target = updated.find(inst => inst.subdomain.toLowerCase() === params.tenant.toLowerCase());
                     if (target) {
                       setCurrentInstitution(target);
