@@ -16,38 +16,50 @@ export const config = {
 
 export function middleware(req: NextRequest) {
   const url = req.nextUrl;
+  const host = req.headers.get("host") || "";
+  
+  const searchParams = req.nextUrl.searchParams.toString();
+  const path = `${url.pathname}${
+    searchParams.length > 0 ? `?${searchParams}` : ""
+  }`;
 
-  // Get hostname of request (e.g. center1.localhost:3000, center1.yoursaas.com)
-  let hostname = req.headers
-    .get("host")!
-    .replace(".localhost:3000", `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`);
+  // Check if we are running on Vercel's default domain or root localhost without subdomain
+  const isVercelDefault = host.includes("vercel.app");
+  const isRootLocalhost = host === "localhost:3000";
+  
+  if (isVercelDefault || isRootLocalhost) {
+    // If the path is just root '/', rewrite to the SaaS landing page '/home'
+    if (path === "/" || path === "") {
+      return NextResponse.rewrite(new URL("/home", req.url));
+    }
+    
+    // If accessing path directly (e.g. /center1 or /center1/admin), pass through to Next.js dynamic routing
+    return NextResponse.next();
+  }
 
-  // Special case for Vercel preview deployment URLs
+  // Otherwise, handle subdomain routing (SaaS production mode)
+  // e.g. center1.localhost:3000/dashboard -> /[tenant]/dashboard
+  // e.g. center1.yoursaas.com/dashboard -> /[tenant]/dashboard
+  let hostname = host.replace(".localhost:3000", `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`);
+
   if (
     hostname.includes("---") &&
     hostname.endsWith(`.${process.env.NEXT_PUBLIC_VERCEL_DEPLOYMENT_SUFFIX}`)
   ) {
     hostname = `${hostname.split("---")[0]}.${
       process.env.NEXT_PUBLIC_ROOT_DOMAIN
-    }`;
+    }`; // Vercel preview URLs
   }
 
-  const searchParams = req.nextUrl.searchParams.toString();
-  const path = `${url.pathname}${
-    searchParams.length > 0 ? `?${searchParams}` : ""
-  }`;
+  // Extract subdomain
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "";
+  const subdomain = hostname.replace(`.${rootDomain}`, "");
 
-  // If the hostname is the root domain (e.g. yoursaas.com), render the main landing page or super admin dashboard
-  if (
-    hostname === "localhost:3000" ||
-    hostname === process.env.NEXT_PUBLIC_ROOT_DOMAIN
-  ) {
-    return NextResponse.rewrite(
-      new URL(`/home${path === "/" ? "" : path}`, req.url)
-    );
+  if (subdomain === hostname || subdomain === "www") {
+    // No subdomain or www, rewrite to home
+    return NextResponse.rewrite(new URL(`/home${path === "/" ? "" : path}`, req.url));
   }
 
-  // Rewrite to the tenant-specific routing folder
-  // e.g. center1.localhost:3000/dashboard -> /[tenant]/dashboard
-  return NextResponse.rewrite(new URL(`/${hostname}${path}`, req.url));
+  // Rewrite to the tenant-specific folder
+  return NextResponse.rewrite(new URL(`/${subdomain}${path}`, req.url));
 }
