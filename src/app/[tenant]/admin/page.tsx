@@ -46,26 +46,7 @@ export default function TenantAdminDashboard({
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [adminLoginError, setAdminLoginError] = useState("");
 
-  // Create Center Modal states
-  const [isCenterModalOpen, setIsCenterModalOpen] = useState(false);
-  const [newCenterName, setNewCenterName] = useState("");
-  const [newCenterSubdomain, setNewCenterSubdomain] = useState("");
-  const [newCenterLogoUrl, setNewCenterLogoUrl] = useState("");
-  const [newCenterAdminEmail, setNewCenterAdminEmail] = useState("");
-  const [newCenterAdminPassword, setNewCenterAdminPassword] = useState("");
-  const [newCenterError, setNewCenterError] = useState("");
-  const [newCenterSuccess, setNewCenterSuccess] = useState("");
-  const [newCenterCreatedLinks, setNewCenterCreatedLinks] = useState<{
-    admin: string;
-    student: string;
-    register: string;
-    name: string;
-    adminEmail: string;
-    adminPassword: string;
-  } | null>(null);
 
-  // List of active institutions for switching centers / list view
-  const [allInstitutions, setAllInstitutions] = useState<Institution[]>([]);
 
   // Storage synced states
   const [applications, setApplications] = useState<Application[]>([]);
@@ -111,8 +92,6 @@ export default function TenantAdminDashboard({
     setCourses(db.getCourses(params.tenant));
     setFlashcards(db.getFlashcards(params.tenant));
     setQuizzes(db.getQuizzes(params.tenant));
-    setAllInstitutions(db.getInstitutions());
-
     if (typeof window !== "undefined") {
       const logged = sessionStorage.getItem(`admin_logged_${params.tenant}`);
       if (logged === "true") {
@@ -125,7 +104,8 @@ export default function TenantAdminDashboard({
     e.preventDefault();
     setAdminLoginError("");
 
-    const currentCenter = allInstitutions.find(inst => inst.subdomain.toLowerCase() === params.tenant.toLowerCase());
+    const institutions = db.getInstitutions();
+    const currentCenter = institutions.find(inst => inst.subdomain.toLowerCase() === params.tenant.toLowerCase());
     const correctEmail = currentCenter?.adminEmail || `admin@${params.tenant}.com`;
     const correctPassword = currentCenter?.adminPassword || `admin_${params.tenant}`;
 
@@ -147,58 +127,7 @@ export default function TenantAdminDashboard({
     setAdminPasswordInput("");
   };
 
-  const handleCreateNewCenterFromModal = (e: React.FormEvent) => {
-    e.preventDefault();
-    setNewCenterError("");
-    setNewCenterSuccess("");
-    setNewCenterCreatedLinks(null);
 
-    if (!newCenterName.trim() || !newCenterSubdomain.trim()) {
-      setNewCenterError("⚠️ يرجى إدخال اسم المركز والرابط الفرعي.");
-      return;
-    }
-
-    const cleanSubdomain = newCenterSubdomain.trim().toLowerCase();
-    if (!/^[a-z0-9-]+$/.test(cleanSubdomain)) {
-      setNewCenterError("⚠️ الرابط الفرعي يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وعلامة - فقط.");
-      return;
-    }
-
-    const all = db.getInstitutions();
-    const exists = all.find(inst => inst.subdomain === cleanSubdomain);
-    if (exists) {
-      setNewCenterError("⚠️ هذا الرابط الفرعي مستخدم بالفعل لمركز آخر.");
-      return;
-    }
-
-    const finalEmail = newCenterAdminEmail.trim() || `admin@${cleanSubdomain}.com`;
-    const finalPass = newCenterAdminPassword.trim() || `admin_${cleanSubdomain}`;
-    const newInst = db.addInstitution(newCenterName, cleanSubdomain, newCenterLogoUrl, finalEmail, finalPass);
-    
-    // Seed default courses
-    db.getCourses(cleanSubdomain);
-
-    setAllInstitutions([...all, newInst]);
-
-    setNewCenterName("");
-    setNewCenterSubdomain("");
-    setNewCenterLogoUrl("");
-    setNewCenterAdminEmail("");
-    setNewCenterAdminPassword("");
-
-    const rootUrl = typeof window !== "undefined" ? window.location.origin : "https://crosses-one.vercel.app";
-    const links = {
-      admin: `${rootUrl}/${cleanSubdomain}/admin`,
-      student: `${rootUrl}/${cleanSubdomain}`,
-      register: `${rootUrl}/${cleanSubdomain}/register`,
-      name: newInst.name,
-      adminEmail: finalEmail,
-      adminPassword: finalPass
-    };
-
-    setNewCenterCreatedLinks(links);
-    setNewCenterSuccess(`🎉 تم إنشاء وتأسيس مركز "${newInst.name}" بنجاح!`);
-  };
 
   // Flash alert helper
   const showAlert = (msg: string) => {
@@ -365,6 +294,15 @@ export default function TenantAdminDashboard({
       db.saveCourses(params.tenant, updated);
       setEditingCourseId(null);
       showAlert("✅ تم تحديث روابط الدورة التدريبية بنجاح! (انعكس لدى جميع المتدربين حالاً)");
+    }
+  };
+
+  const handleDeleteCourse = (id: string) => {
+    if (confirm("⚠️ هل أنت متأكد من رغبتك في حذف هذه الدورة التدريبية بالكامل؟ سيؤدي ذلك لحذفها لدى جميع المتدربين.")) {
+      const updated = courses.filter(c => c.id !== id);
+      setCourses(updated);
+      db.saveCourses(params.tenant, updated);
+      showAlert("🗑️ تم حذف الدورة التدريبية بنجاح.");
     }
   };
 
@@ -690,12 +628,6 @@ export default function TenantAdminDashboard({
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsCenterModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-blue-500/25 transition-all"
-          >
-            <PlusCircle size={14} /> إنشاء مركز جديد
-          </button>
-          <button
             onClick={handleAdminLogout}
             className="bg-red-50 text-red-600 border border-red-100 px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 hover:bg-red-100 transition-all"
           >
@@ -962,12 +894,20 @@ export default function TenantAdminDashboard({
                       <div>
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="font-extrabold text-lg text-slate-800 dark:text-white">{c.title}</h4>
-                          <button
-                            onClick={() => handleEditCourseLinks(c)}
-                            className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
-                          >
-                            <Edit size={12} /> تعديل الروابط
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditCourseLinks(c)}
+                              className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                            >
+                              <Edit size={12} /> تعديل الروابط
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCourse(c.id)}
+                              className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1"
+                            >
+                              <Trash2 size={12} /> حذف الدورة
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm text-slate-500 mb-4">{c.description}</p>
                         
@@ -1432,189 +1372,6 @@ export default function TenantAdminDashboard({
         )}
 
       </div>
-
-      {/* Create New Center Modal */}
-      <AnimatePresence>
-        {isCenterModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 text-right" dir="rtl">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-100 dark:border-slate-700 shadow-2xl relative"
-            >
-              <button
-                onClick={() => {
-                  setIsCenterModalOpen(false);
-                  setNewCenterError("");
-                  setNewCenterSuccess("");
-                  setNewCenterCreatedLinks(null);
-                }}
-                className="absolute left-4 top-4 text-slate-400 hover:text-slate-600 font-bold"
-              >
-                ✕
-              </button>
-
-              <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
-                <Building className="text-blue-600" size={24} /> إنشاء مركز تعليمي جديد (SaaS Center Creation)
-              </h3>
-              <p className="text-xs text-slate-400 font-bold mb-6">قم بتأسيس مركز تعليمي جديد بنطاق فرعي وحساب أدمن مستقل تماماً.</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Form Column */}
-                <form onSubmit={handleCreateNewCenterFromModal} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">اسم المركز التعليمي:</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="مثال: أكاديمية الإبداع"
-                      value={newCenterName}
-                      onChange={(e) => setNewCenterName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الرابط الفرعي (Subdomain):</label>
-                    <span className="text-[9px] text-slate-400 block mb-1.5 font-semibold">سيكون رابط الدخول للمركز بناءً على هذه الكلمة.</span>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="creative-academy"
-                        value={newCenterSubdomain}
-                        onChange={(e) => setNewCenterSubdomain(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
-                        className="w-full pl-24 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-left font-bold text-sm"
-                        dir="ltr"
-                      />
-                      <div className="absolute left-3 top-3 text-[10px] text-slate-400 font-bold" dir="ltr">
-                        .localhost:3000
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 dark:border-slate-700 pt-3 space-y-3">
-                    <span className="block text-xs font-extrabold text-blue-600 dark:text-blue-400">⚙️ تخصيص حساب الأدمن للمركز (اختياري):</span>
-                    
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 mb-1">البريد الإلكتروني للأدمن:</label>
-                      <input
-                        type="email"
-                        placeholder="مثال: admin@creative.com"
-                        value={newCenterAdminEmail}
-                        onChange={(e) => setNewCenterAdminEmail(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none text-left font-bold text-xs"
-                        dir="ltr"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 mb-1">كلمة المرور للأدمن:</label>
-                      <input
-                        type="text"
-                        placeholder="كلمة المرور المطلوبة للدخول"
-                        value={newCenterAdminPassword}
-                        onChange={(e) => setNewCenterAdminPassword(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none text-left font-bold text-xs"
-                        dir="ltr"
-                      />
-                    </div>
-                  </div>
-
-                  {newCenterError && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold border border-red-100">
-                      {newCenterError}
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 text-xs"
-                  >
-                    <PlusCircle size={14} /> تأسيس المركز وتفعيل الكورسات
-                  </button>
-                </form>
-
-                {/* Info / Institutions List Column */}
-                <div className="space-y-4">
-                  
-                  {/* Creation Success links display */}
-                  {newCenterCreatedLinks ? (
-                    <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 p-5 rounded-2xl text-emerald-800 dark:text-emerald-300 space-y-3">
-                      <div className="flex items-center gap-1.5 font-bold text-sm">
-                        <CheckCircle2 size={16} className="text-emerald-600" />
-                        <span>{newCenterSuccess}</span>
-                      </div>
-                      
-                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-emerald-100 dark:border-slate-800 text-[11px] font-mono space-y-1 text-slate-800 dark:text-slate-200">
-                        <p className="flex justify-between">
-                          <span>{newCenterCreatedLinks.adminEmail}</span>
-                          <span className="text-slate-400 font-bold">Email:</span>
-                        </p>
-                        <p className="flex justify-between">
-                          <span>{newCenterCreatedLinks.adminPassword}</span>
-                          <span className="text-slate-400 font-bold">Password:</span>
-                        </p>
-                      </div>
-
-                      <div className="space-y-1 text-[11px] font-bold text-slate-800 dark:text-slate-200">
-                        <p className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-emerald-100 dark:border-slate-800 flex justify-between items-center">
-                          <span>لوحة أدمن المركز:</span>
-                          <a href={newCenterCreatedLinks.admin} target="_blank" className="text-blue-600 hover:underline flex items-center gap-0.5">
-                            دخول للأدمن <ExternalLink size={8} />
-                          </a>
-                        </p>
-                        <p className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-emerald-100 dark:border-slate-800 flex justify-between items-center">
-                          <span>بوابة الطلاب:</span>
-                          <a href={newCenterCreatedLinks.student} target="_blank" className="text-blue-600 hover:underline flex items-center gap-0.5">
-                            بوابة الطلاب <ExternalLink size={8} />
-                          </a>
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/80">
-                      <h4 className="font-extrabold text-sm text-slate-700 dark:text-slate-300 mb-3">المراكز الحالية بالمنصة ({allInstitutions.length}):</h4>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                        {allInstitutions.map((inst) => (
-                          <div key={inst.id} className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-white">{inst.name}</p>
-                              <p className="text-[10px] text-slate-400" dir="ltr">/{inst.subdomain}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <a
-                                href={`/${inst.subdomain}`}
-                                target="_blank"
-                                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-950 text-slate-600 dark:text-slate-300 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-0.5"
-                              >
-                                الطلاب <ExternalLink size={8} />
-                              </a>
-                              <a
-                                href={`/${inst.subdomain}/admin`}
-                                target="_blank"
-                                className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-0.5"
-                              >
-                                الأدمن <ExternalLink size={8} />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                </div>
-
-              </div>
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
     </div>
   );
 }

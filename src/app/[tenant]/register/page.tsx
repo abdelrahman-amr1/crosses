@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, Course } from "@/lib/db";
+import { compressBase64 } from "@/lib/imageCompressor";
 import { User, ClipboardList, Phone, FileText, Upload, Sparkles, CheckCircle2 } from "lucide-react";
 
 export default function StudentRegistration({
@@ -37,14 +38,12 @@ export default function StudentRegistration({
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("⚠️ حجم الصورة كبير جداً. الحد الأقصى هو 2 ميجابايت.");
-        return;
-      }
       setPhotoFileName(file.name);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoBase64(reader.result as string);
+      reader.onloadend = async () => {
+        const rawBase64 = reader.result as string;
+        const compressed = await compressBase64(rawBase64);
+        setPhotoBase64(compressed);
       };
       reader.readAsDataURL(file);
     }

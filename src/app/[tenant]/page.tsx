@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, Course, Student } from "@/lib/db";
+import { compressBase64 } from "@/lib/imageCompressor";
 import CoursePanel from "@/components/CoursePanel";
 import Leaderboard from "@/components/Leaderboard";
 import { LogOut, BookOpen, User, Camera, ShieldCheck, ClipboardList, Send, Phone } from "lucide-react";
@@ -93,19 +94,20 @@ export default function TenantStudentPortal({
     const file = e.target.files?.[0];
     if (file && student) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setAvatarPreview(base64String);
+      reader.onloadend = async () => {
+        const rawBase64 = reader.result as string;
+        const compressed = await compressBase64(rawBase64);
+        setAvatarPreview(compressed);
 
         // Update student in database
         const allStudents = db.getStudents(params.tenant);
         const updated = allStudents.map((s) =>
-          s.id === student.id ? { ...s, avatarUrl: base64String } : s
+          s.id === student.id ? { ...s, avatarUrl: compressed } : s
         );
         db.saveStudents(params.tenant, updated);
 
         // Update current student state
-        const updatedStudent = { ...student, avatarUrl: base64String };
+        const updatedStudent = { ...student, avatarUrl: compressed };
         setStudent(updatedStudent);
         localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(updatedStudent));
       };
