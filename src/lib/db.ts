@@ -42,6 +42,16 @@ export interface Application {
   createdAt: string;
 }
 
+export interface Institution {
+  id: string;
+  name: string;
+  subdomain: string;
+  logoUrl?: string;
+  createdAt: string;
+  adminEmail?: string;
+  adminPassword?: string;
+}
+
 export interface SelfEvaluation {
   id: string;
   username: string;
@@ -119,6 +129,48 @@ const DEFAULT_QUIZZES: QuizQuestion[] = [
 ];
 
 export const db = {
+  // Institutions (المراكز والمدارس)
+  getInstitutions: (): Institution[] => {
+    if (typeof window === "undefined") return [];
+    const key = "institutions_list";
+    const stored = localStorage.getItem(key);
+    if (!stored) {
+      const initial: Institution[] = [
+        { 
+          id: "inst-1", 
+          name: "مركز التعليم الأول", 
+          subdomain: "center1", 
+          createdAt: new Date().toISOString(),
+          adminEmail: "admin@center1.com",
+          adminPassword: "admin_center1"
+        }
+      ];
+      localStorage.setItem(key, JSON.stringify(initial));
+      return initial;
+    }
+    return JSON.parse(stored);
+  },
+  saveInstitutions: (list: Institution[]) => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("institutions_list", JSON.stringify(list));
+  },
+  addInstitution: (name: string, subdomain: string, logoUrl?: string, adminEmail?: string, adminPassword?: string): Institution => {
+    const list = db.getInstitutions();
+    const cleanSubdomain = subdomain.trim().toLowerCase();
+    const newInst: Institution = {
+      id: `inst-${Date.now()}`,
+      name,
+      subdomain: cleanSubdomain,
+      logoUrl,
+      createdAt: new Date().toISOString(),
+      adminEmail: adminEmail || `admin@${cleanSubdomain}.com`,
+      adminPassword: adminPassword || `admin_${cleanSubdomain}`
+    };
+    list.push(newInst);
+    db.saveInstitutions(list);
+    return newInst;
+  },
+
   // Courses
   getCourses: (tenant: string): Course[] => {
     if (typeof window === "undefined") return DEFAULT_COURSES;
