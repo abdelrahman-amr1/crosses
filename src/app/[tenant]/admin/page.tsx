@@ -903,7 +903,8 @@ export default function TenantAdminDashboard({
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white">طلبات التحاق الطلاب الجدد للقبول والمراجعة</h3>
             
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-right border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 font-bold">
@@ -965,6 +966,59 @@ export default function TenantAdminDashboard({
               </table>
             </div>
 
+            {/* Mobile Card View */}
+            <div className="grid grid-cols-1 gap-4 md:hidden">
+              {applications.filter(a => a.status === "pending").map((item) => {
+                const course = courses.find(c => c.id === item.courseId);
+                return (
+                  <div key={item.id} className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center flex-shrink-0">
+                        {item.photoUrl ? (
+                          <img src={item.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <Users size={18} className="text-slate-400" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-850 dark:text-white text-sm">{item.fullName}</h4>
+                        <p className="text-xs text-slate-500 font-bold">{course?.title || "دورة برمجة"}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 text-xs text-slate-655 dark:text-slate-400 font-medium">
+                      <p className="flex justify-between">
+                        <span>الرقم القومي:</span>
+                        <span className="font-bold text-slate-800 dark:text-white select-all">{item.nationalId}</span>
+                      </p>
+                      <p className="flex justify-between">
+                        <span>رقم الواتساب:</span>
+                        <span className="font-bold text-slate-800 dark:text-white select-all" dir="ltr">{item.phone}</span>
+                      </p>
+                    </div>
+                    <div className="flex gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800">
+                      <button
+                        onClick={() => handleApproveApp(item)}
+                        className="flex-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 py-2.5 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-1"
+                      >
+                        <UserCheck size={14} /> قبول
+                      </button>
+                      <button
+                        onClick={() => handleRejectApp(item)}
+                        className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-2.5 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-1"
+                      >
+                        <UserX size={14} /> رفض
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {applications.filter(a => a.status === "pending").length === 0 && (
+                <div className="py-12 text-center text-slate-400 font-bold bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200">
+                  🎉 لا توجد طلبات معلقة بانتظار الموافقة حالياً.
+                </div>
+              )}
+            </div>
+
             <div className="mt-8 bg-blue-50 dark:bg-blue-950/40 p-5 rounded-2xl border border-blue-100/50">
               <p className="text-sm text-blue-700 dark:text-blue-300 font-bold flex items-center gap-2">
                 🔗 <strong>رابط بوابة تسجيل الطلاب العامة للمشاركة:</strong>
@@ -987,7 +1041,8 @@ export default function TenantAdminDashboard({
             <div className="lg:col-span-2">
               <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">قائمة المتدربين المقبولين بالمركز</h3>
               
-              <div className="overflow-x-auto">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-right border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 font-bold">
@@ -1031,6 +1086,47 @@ export default function TenantAdminDashboard({
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="grid grid-cols-1 gap-4 md:hidden">
+                {students.map((item) => {
+                  const studentCourse = courses.find(c => c.id === item.courseId);
+                  return (
+                    <div key={item.id} className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                          رقم الكشف: #{item.rollNumber || 1}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteStudent(item.id)}
+                          className="text-red-500 hover:text-red-700 p-1.5 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-850 dark:text-white text-sm">{item.name}</h4>
+                        <p className="text-xs text-slate-500 font-bold mt-0.5">{studentCourse?.title || "دورة غير معروفة"}</p>
+                      </div>
+                      <div className="space-y-1.5 text-xs text-slate-650 dark:text-slate-400 font-medium pt-2 border-t border-slate-200/50 dark:border-slate-800">
+                        <p className="flex justify-between">
+                          <span>البريد الإلكتروني:</span>
+                          <span className="font-bold text-slate-800 dark:text-white select-all">{item.email}</span>
+                        </p>
+                        <p className="flex justify-between">
+                          <span>الهاتف:</span>
+                          <span className="font-bold text-slate-850 dark:text-white select-all" dir="ltr">{item.phone}</span>
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                {students.length === 0 && (
+                  <div className="text-center py-12 text-slate-400 font-bold bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200">
+                    لم يتم قبول أو إضافة أي متدرب بعد.
+                  </div>
+                )}
               </div>
             </div>
 
