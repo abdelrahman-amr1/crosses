@@ -30,7 +30,8 @@ import {
   Copy,
   Check,
   Building,
-  Video
+  Video,
+  Award
 } from "lucide-react";
 import { db, Course, Flashcard, QuizQuestion, Student, Application, Institution, AttendanceRecord } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
@@ -1118,7 +1119,17 @@ export default function TenantAdminDashboard({
                           <td className="py-4 text-slate-600 font-bold dark:text-slate-300">
                             {studentCourse?.title || "دورة غير معروفة"}
                           </td>
-                          <td className="py-4 text-center">
+                          <td className="py-4 text-center whitespace-nowrap">
+                            <button
+                              onClick={() => {
+                                const courseTitle = studentCourse?.title || "دورة عامة";
+                                window.open(`/${params.tenant}/certificate?name=${encodeURIComponent(item.name)}&course=${encodeURIComponent(courseTitle)}`, '_blank');
+                              }}
+                              title="عرض الشهادة"
+                              className="text-emerald-600 hover:text-emerald-800 p-2 transition-colors inline-block mr-2"
+                            >
+                              <Award size={16} />
+                            </button>
                             <button
                               onClick={() => handleDeleteStudent(item.id)}
                               className="text-red-500 hover:text-red-700 p-2 transition-colors inline-block"
@@ -1150,12 +1161,24 @@ export default function TenantAdminDashboard({
                         <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold">
                           رقم الكشف: #{item.rollNumber || 1}
                         </span>
-                        <button
-                          onClick={() => handleDeleteStudent(item.id)}
-                          className="text-red-500 hover:text-red-700 p-1.5 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              const courseTitle = studentCourse?.title || "دورة عامة";
+                              window.open(`/${params.tenant}/certificate?name=${encodeURIComponent(item.name)}&course=${encodeURIComponent(courseTitle)}`, '_blank');
+                            }}
+                            title="عرض الشهادة"
+                            className="text-emerald-600 hover:text-emerald-800 p-1.5 transition-colors"
+                          >
+                            <Award size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStudent(item.id)}
+                            className="text-red-500 hover:text-red-700 p-1.5 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-850 dark:text-white text-sm">{item.name}</h4>

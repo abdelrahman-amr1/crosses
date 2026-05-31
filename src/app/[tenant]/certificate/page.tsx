@@ -3,9 +3,15 @@ import Certificate from "@/components/Certificate";
 
 export default function TenantCertificatePage({
   params,
+  searchParams,
 }: {
   params: { tenant: string };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
+  const studentName = (searchParams.name as string) || "أحمد محمد محمود";
+  const courseName = (searchParams.course as string) || "برمجة تطبيقات الويب باستخدام React & Next.js";
+  const dateStr = (searchParams.date as string) || new Date().toLocaleDateString('ar-EG');
+
   return (
     <div className="py-12">
       <div className="text-center mb-12">
@@ -18,10 +24,10 @@ export default function TenantCertificatePage({
       </div>
 
       <Certificate 
-        studentName="أحمد محمد محمود"
-        courseName="برمجة تطبيقات الويب باستخدام React & Next.js"
+        studentName={studentName}
+        courseName={courseName}
         centerName={params.tenant}
-        date={new Date().toLocaleDateString('ar-EG')}
+        date={dateStr}
       />
     </div>
   );
