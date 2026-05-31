@@ -564,7 +564,7 @@ export default function TenantAdminDashboard({
           const newCards: Flashcard[] = parsed.map((row, idx) => {
             const question = row[0] || "";
             const answer = row[1] || "";
-            const lectureNumber = Number(row[2]) || selectedLectureNum;
+            const lectureNumber = selectedLectureNum;
             
             return {
               id: generateUUID(),
@@ -674,7 +674,7 @@ export default function TenantAdminDashboard({
             const optionC = row[3] || "";
             const optionD = row[4] || "";
             const correctOption = Number(row[5]) || 0;
-            const lectureNumber = Number(row[6]) || selectedLectureNum;
+            const lectureNumber = selectedLectureNum;
             
             return {
               id: generateUUID(),
@@ -1500,7 +1500,7 @@ export default function TenantAdminDashboard({
                     className="hidden"
                   />
                 </label>
-                <span className="text-[10px] text-slate-400 mt-1">تنسيق الـ CSV المقبول: السؤال, الإجابة, رقم المحاضرة</span>
+                <span className="text-[10px] text-slate-400 mt-1">تنسيق الـ CSV المقبول: السؤال, الإجابة</span>
               </div>
             </div>
 
@@ -1651,7 +1651,7 @@ export default function TenantAdminDashboard({
                     className="hidden"
                   />
                 </label>
-                <span className="text-[10px] text-slate-400 mt-1">التنسيق المقبول: السؤال, الخيار أ, الخيار ب, الخيار ج, الخيار د, رقم الخيار الصحيح (0-3), رقم المحاضرة</span>
+                <span className="text-[10px] text-slate-400 mt-1">التنسيق المقبول: السؤال, الخيار أ, الخيار ب, الخيار ج, الخيار د, رقم الخيار الصحيح (0-3)</span>
               </div>
             </div>
 
