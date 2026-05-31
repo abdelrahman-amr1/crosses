@@ -70,11 +70,11 @@ export default function TenantAdminDashboard({
   const [quizzes, setQuizzes] = useState<QuizQuestion[]>([]);
 
   // Filtering states
-  const [selectedCourseId, setSelectedCourseId] = useState<string>("web-dev");
+  const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [selectedLectureNum, setSelectedLectureNum] = useState<number>(1);
 
   // Form states
-  const [newStudent, setNewStudent] = useState({ name: "", email: "", courseId: "web-dev" });
+  const [newStudent, setNewStudent] = useState({ name: "", email: "", courseId: "" });
   
   // Course edit & addition forms
   const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
@@ -203,6 +203,10 @@ export default function TenantAdminDashboard({
         setApplications(apps);
         setStudents(stds);
         setCourses(crs);
+        if (crs.length > 0) {
+          setSelectedCourseId(crs[0].id);
+          setNewStudent(prev => ({ ...prev, courseId: crs[0].id }));
+        }
         setFlashcards(fcs);
         setQuizzes(qzs);
         
@@ -357,6 +361,10 @@ export default function TenantAdminDashboard({
   // Student management (Manual creation)
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newStudent.courseId) {
+      alert("الرجاء إضافة دورة أولاً لتعيين الطالب لها.");
+      return;
+    }
     if (newStudent.name && newStudent.email) {
       const matchedCourse = courses.find(c => c.id === newStudent.courseId);
       if (!matchedCourse) return;
@@ -495,6 +503,10 @@ export default function TenantAdminDashboard({
   // Flashcards management
   const handleAddFlashcard = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedCourseId) {
+      alert("الرجاء إضافة دورة أولاً");
+      return;
+    }
     if (newFlashcard.question && newFlashcard.answer) {
       const cardObj: Flashcard = {
         id: editingFlashcardId || generateUUID(),
@@ -549,6 +561,10 @@ export default function TenantAdminDashboard({
 
   // CSV Import for Flashcards
   const handleFlashcardCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedCourseId) {
+      alert("الرجاء إضافة واختيار دورة أولاً قبل رفع الكروت.");
+      return;
+    }
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -591,6 +607,10 @@ export default function TenantAdminDashboard({
   // Quizzes management
   const handleAddQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedCourseId) {
+      alert("الرجاء إضافة دورة أولاً");
+      return;
+    }
     if (newQuiz.optionA && newQuiz.optionB && newQuiz.question) {
       const quizObj: QuizQuestion = {
         id: editingQuizId || generateUUID(),
@@ -655,6 +675,10 @@ export default function TenantAdminDashboard({
 
   // CSV Import for Quizzes
   const handleQuizCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedCourseId) {
+      alert("الرجاء إضافة واختيار دورة أولاً قبل رفع الأسئلة.");
+      return;
+    }
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
