@@ -31,8 +31,12 @@ export default function Leaderboard({ tenant, currentStudentName }: { tenant: st
     // Construct leaderboard entries
     let entries: LeaderboardEntry[] = allStudents.map((std, idx) => {
       const course = courses.find((c) => c.id === std.courseId);
-      // Retrieve score from database or assign a simulated high score
-      const score = mockScores[std.id] || (std.name === currentStudentName ? 80 : 60 + (idx * 7) % 35);
+      // Retrieve real score from database
+      const realScore = db.getStudentTotalScore(tenant, std.name);
+      // Current student gets 100% real score, others get real score if any, fallback to mock score
+      const score = (std.name.trim().toLowerCase() === currentStudentName.trim().toLowerCase())
+        ? realScore
+        : (realScore > 0 ? realScore : (mockScores[std.id] || 45 + (idx * 9) % 35));
       
       return {
         rank: 0,

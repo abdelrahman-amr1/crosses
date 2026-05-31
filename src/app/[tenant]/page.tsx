@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db, Course, Student } from "@/lib/db";
+import { db, Course, Student, Institution } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
 import CoursePanel from "@/components/CoursePanel";
 import Leaderboard from "@/components/Leaderboard";
@@ -22,9 +22,17 @@ export default function TenantStudentPortal({
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [loginError, setLoginError] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const [institution, setInstitution] = useState<Institution | null>(null);
 
   // Load configuration on mount
   useEffect(() => {
+    // Fetch current institution info
+    const insts = db.getInstitutions();
+    const current = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+    if (current) {
+      setInstitution(current);
+    }
+
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
       if (savedUser) {
@@ -189,11 +197,15 @@ export default function TenantStudentPortal({
                   key={c.id}
                   className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group"
                 >
-                  <div className="h-44 bg-gradient-to-br from-blue-400 to-indigo-600 relative flex items-center justify-center text-white overflow-hidden">
-                    <div className="text-center p-6">
-                      <BookOpen size={44} className="mx-auto mb-2 opacity-80" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Academy Course</span>
-                    </div>
+                  <div className="h-44 relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                    {c.coverImage ? (
+                      <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="text-center p-6">
+                        <BookOpen size={44} className="mx-auto mb-2 opacity-80" />
+                        <span className="text-xs font-bold uppercase tracking-wider">Academy Course</span>
+                      </div>
+                    )}
                     <span className="absolute top-4 left-4 bg-emerald-500 text-white text-xs font-extrabold px-3 py-1 rounded-full shadow-md">
                       مقبول ونشط
                     </span>
@@ -237,9 +249,16 @@ export default function TenantStudentPortal({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] px-4 py-12" dir="rtl">
-      <div className="max-w-md w-full text-center">
+      <div className="max-w-md w-full text-center flex flex-col items-center">
+        {institution?.logoUrl ? (
+          <img src={institution.logoUrl} alt="Logo" className="w-20 h-20 rounded-2xl object-contain bg-white border p-1 shadow-md mb-6" />
+        ) : (
+          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-extrabold text-2xl shadow-inner mb-6">
+            {(institution?.name || params.tenant).charAt(0).toUpperCase()}
+          </div>
+        )}
         <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-3">
-          بوابة الطلاب - مركز {params.tenant}
+          بوابة الطلاب - {institution?.name || params.tenant}
         </h2>
         <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
           سجل دخولك للوصول إلى محاضراتك، كويزاتك، والبطاقات التفاعلية.

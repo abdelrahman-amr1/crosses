@@ -307,5 +307,25 @@ export const db = {
     evals.push(newEval);
     localStorage.setItem(key, JSON.stringify(evals));
     return newEval;
+  },
+
+  // Quiz Scores
+  saveQuizScore: (tenant: string, username: string, courseId: string, lectureNumber: number, score: number) => {
+    if (typeof window === "undefined") return;
+    const key = `scores_${tenant}_${username}`;
+    const stored = localStorage.getItem(key);
+    const scores: Record<string, number> = stored ? JSON.parse(stored) : {};
+    scores[`${courseId}_${lectureNumber}`] = score;
+    localStorage.setItem(key, JSON.stringify(scores));
+  },
+  getQuizScores: (tenant: string, username: string): Record<string, number> => {
+    if (typeof window === "undefined") return {};
+    const key = `scores_${tenant}_${username}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : {};
+  },
+  getStudentTotalScore: (tenant: string, username: string): number => {
+    const scores = db.getQuizScores(tenant, username);
+    return Object.values(scores).reduce((a, b) => a + b, 0) * 10;
   }
 };

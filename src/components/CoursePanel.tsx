@@ -112,6 +112,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
     });
     setQuizScore(score);
     setQuizSubmitted(true);
+    db.saveQuizScore(tenant, studentName, course.id, selectedLecture, score);
   };
 
   // Handle Self Evaluation Submit

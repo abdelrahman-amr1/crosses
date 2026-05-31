@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, Institution } from "@/lib/db";
-import { School, PlusCircle, Globe, ExternalLink, ShieldCheck, Landmark, Sparkles, CheckCircle2, Lock, User, LogOut } from "lucide-react";
+import { School, PlusCircle, Globe, ExternalLink, ShieldCheck, Landmark, Sparkles, CheckCircle2, Lock, User, LogOut, Upload } from "lucide-react";
+import { compressBase64 } from "@/lib/imageCompressor";
 
 export default function SuperAdminPortal() {
   const router = useRouter();
@@ -237,9 +238,13 @@ export default function SuperAdminPortal() {
               >
                 <div>
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-blue-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-extrabold text-xl shadow-inner">
-                      {inst.name.charAt(0)}
-                    </div>
+                    {inst.logoUrl ? (
+                      <img src={inst.logoUrl} alt="Logo" className="w-12 h-12 rounded-2xl object-contain bg-slate-50 border p-1" />
+                    ) : (
+                      <div className="w-12 h-12 bg-blue-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-extrabold text-xl shadow-inner">
+                        {inst.name.charAt(0)}
+                      </div>
+                    )}
                     <div>
                       <h4 className="font-extrabold text-slate-800 dark:text-white text-lg">{inst.name}</h4>
                       <p className="text-xs text-slate-400 font-bold mt-1">تاريخ الإنشاء: {new Date(inst.createdAt).toLocaleDateString("ar-EG")}</p>
@@ -249,8 +254,8 @@ export default function SuperAdminPortal() {
                   {/* Domain path info */}
                   <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs space-y-2 font-medium">
                     <p className="flex justify-between items-center">
-                      <span className="text-slate-400">النطاق الفرعي:</span>
-                      <span className="font-bold text-blue-600 select-all" dir="ltr">{inst.subdomain}.localhost</span>
+                      <span className="text-slate-400">الرابط الفرعي (الكود):</span>
+                      <span className="font-bold text-blue-600 select-all" dir="ltr">{inst.subdomain}</span>
                     </p>
                     <p className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold">
                       <span>إيميل الأدمن:</span>
@@ -315,6 +320,36 @@ export default function SuperAdminPortal() {
                   <div className="absolute left-3 top-3.5 text-xs text-slate-400 font-bold" dir="ltr">
                     .vercel.app
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">شعار المركز (Logo):</label>
+                <div className="flex items-center gap-3">
+                  {logoUrl && (
+                    <img src={logoUrl} alt="Preview" className="w-12 h-12 rounded-xl object-contain bg-slate-100 dark:bg-slate-900 border p-1" />
+                  )}
+                  <label className="flex-1 cursor-pointer bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 flex items-center justify-center gap-2 transition-all">
+                    <Upload size={16} />
+                    <span>{logoUrl ? "تغيير الشعار" : "رفع شعار للمركز"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = async (event) => {
+                            const base64 = event.target?.result as string;
+                            const compressed = await compressBase64(base64, 250, 250, 0.75);
+                            setLogoUrl(compressed);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
 

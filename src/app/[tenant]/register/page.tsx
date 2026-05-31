@@ -197,6 +197,31 @@ export default function StudentRegistration({
                 </option>
               ))}
             </select>
+
+            {/* Premium Course Preview Display */}
+            {selectedCourseId && courses.find(c => c.id === selectedCourseId) && (() => {
+              const selectedCourse = courses.find(c => c.id === selectedCourseId)!;
+              return (
+                <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row gap-4 items-center">
+                  <div className="w-full sm:w-28 h-20 rounded-xl overflow-hidden relative bg-gradient-to-br from-blue-400 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white">
+                    {selectedCourse.coverImage ? (
+                      <img src={selectedCourse.coverImage} alt={selectedCourse.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <ClipboardList size={28} className="opacity-80" />
+                    )}
+                  </div>
+                  <div className="flex-1 text-center sm:text-right">
+                    <h4 className="font-extrabold text-sm text-slate-800 dark:text-white">{selectedCourse.title}</h4>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{selectedCourse.description}</p>
+                    <div className="mt-2 flex gap-3 text-[10px] font-bold text-slate-400 justify-center sm:justify-start">
+                      <span>📚 المحاضرات: {selectedCourse.lecturesCount} محاضرات</span>
+                      <span>•</span>
+                      <span className="text-green-600 font-extrabold">{selectedCourse.price} ج.م</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Photo Uploader */}

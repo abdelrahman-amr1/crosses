@@ -32,6 +32,7 @@ import {
   Building
 } from "lucide-react";
 import { db, Course, Flashcard, QuizQuestion, Student, Application, Institution } from "@/lib/db";
+import { compressBase64 } from "@/lib/imageCompressor";
 
 export default function TenantAdminDashboard({
   params,
@@ -45,6 +46,8 @@ export default function TenantAdminDashboard({
   const [adminEmailInput, setAdminEmailInput] = useState("");
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [adminLoginError, setAdminLoginError] = useState("");
+
+  const [currentInstitution, setCurrentInstitution] = useState<Institution | null>(null);
 
 
 
@@ -63,9 +66,9 @@ export default function TenantAdminDashboard({
   const [newStudent, setNewStudent] = useState({ name: "", email: "", courseId: "web-dev" });
   
   // Course edit & addition forms
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12 });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
-  const [editingCourseData, setEditingCourseData] = useState({ lectureUrl: "", whatsappGroupUrl: "" });
+  const [editingCourseData, setEditingCourseData] = useState({ title: "", description: "", price: 500, lecturesCount: 12, lectureUrl: "", whatsappGroupUrl: "", coverImage: "" });
 
   // Flashcard manual form
   const [newFlashcard, setNewFlashcard] = useState<{ question: string; answer: string; difficulty: "easy" | "medium" | "hard" }>({ question: "", answer: "", difficulty: "medium" });
@@ -92,6 +95,13 @@ export default function TenantAdminDashboard({
     setCourses(db.getCourses(params.tenant));
     setFlashcards(db.getFlashcards(params.tenant));
     setQuizzes(db.getQuizzes(params.tenant));
+    
+    const insts = db.getInstitutions();
+    const inst = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+    if (inst) {
+      setCurrentInstitution(inst);
+    }
+
     if (typeof window !== "undefined") {
       const logged = sessionStorage.getItem(`admin_logged_${params.tenant}`);
       if (logged === "true") {
@@ -181,13 +191,10 @@ export default function TenantAdminDashboard({
     db.saveApplications(params.tenant, updatedApps);
 
     // 5. Construct official WhatsApp Message with dynamic entry URL based on hosting
-    const rootUrl = typeof window !== "undefined" ? window.location.origin : `http://${params.tenant}.localhost:3000`;
-    let entryUrl = rootUrl;
-    if (rootUrl.includes("localhost")) {
-      entryUrl = `http://${params.tenant}.localhost:3000`;
-    } else {
-      entryUrl = `${rootUrl}/${params.tenant}`;
-    }
+    const rootUrl = typeof window !== "undefined" && !window.location.origin.includes("localhost")
+      ? window.location.origin
+      : "https://crosses-one.vercel.app";
+    const entryUrl = `${rootUrl}/${params.tenant}`;
 
     const whatsAppMessage = `السلام عليكم يا متدرب(ة) ${app.fullName}،
 🎉 يسعدنا إعلامك بأنه تم قبولك رسمياً في دورة "${matchedCourse.title}" بمركزنا!
@@ -279,13 +286,14 @@ export default function TenantAdminDashboard({
         price: Number(newCourse.price),
         lecturesCount: Number(newCourse.lecturesCount),
         lectureUrl: "https://meet.google.com/abc-defg-hij",
-        whatsappGroupUrl: "https://chat.whatsapp.com/G1x2y3z4"
+        whatsappGroupUrl: "https://chat.whatsapp.com/G1x2y3z4",
+        coverImage: newCourse.coverImage || undefined
       };
 
       const updated = [...courses, courseObj];
       setCourses(updated);
       db.saveCourses(params.tenant, updated);
-      setNewCourse({ title: "", description: "", price: 500, lecturesCount: 12 });
+      setNewCourse({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
       showAlert(`✅ تم إضافة الدورة التعليمية "${courseObj.title}" بنجاح.`);
     }
   };
@@ -293,8 +301,13 @@ export default function TenantAdminDashboard({
   const handleEditCourseLinks = (course: Course) => {
     setEditingCourseId(course.id);
     setEditingCourseData({
+      title: course.title,
+      description: course.description,
+      price: course.price,
+      lecturesCount: course.lecturesCount,
       lectureUrl: course.lectureUrl,
-      whatsappGroupUrl: course.whatsappGroupUrl
+      whatsappGroupUrl: course.whatsappGroupUrl,
+      coverImage: course.coverImage || ""
     });
   };
 
@@ -302,13 +315,22 @@ export default function TenantAdminDashboard({
     if (editingCourseId) {
       const updated = courses.map(c => 
         c.id === editingCourseId 
-          ? { ...c, lectureUrl: editingCourseData.lectureUrl, whatsappGroupUrl: editingCourseData.whatsappGroupUrl } 
+          ? { 
+              ...c, 
+              title: editingCourseData.title,
+              description: editingCourseData.description,
+              price: Number(editingCourseData.price),
+              lecturesCount: Number(editingCourseData.lecturesCount),
+              lectureUrl: editingCourseData.lectureUrl, 
+              whatsappGroupUrl: editingCourseData.whatsappGroupUrl,
+              coverImage: editingCourseData.coverImage || undefined
+            } 
           : c
       );
       setCourses(updated);
       db.saveCourses(params.tenant, updated);
       setEditingCourseId(null);
-      showAlert("✅ تم تحديث روابط الدورة التدريبية بنجاح! (انعكس لدى جميع المتدربين حالاً)");
+      showAlert("✅ تم تحديث بيانات الدورة التدريبية بنجاح! (انعكس لدى جميع المتدربين حالاً)");
     }
   };
 
@@ -394,6 +416,15 @@ export default function TenantAdminDashboard({
       setFlashcards(updated);
       db.saveFlashcards(params.tenant, updated);
       showAlert("🗑️ تم حذف البطاقة.");
+    }
+  };
+
+  const handleDeleteAllFlashcards = () => {
+    if (confirm("⚠️ هل أنت متأكد من رغبتك في حذف جميع الكروت لهذه المحاضرة بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) {
+      const updated = flashcards.filter(c => !(c.courseId === selectedCourseId && c.lectureNumber === selectedLectureNum));
+      setFlashcards(updated);
+      db.saveFlashcards(params.tenant, updated);
+      showAlert("🗑️ تم حذف جميع الكروت لهذه المحاضرة بنجاح.");
     }
   };
 
@@ -491,6 +522,15 @@ export default function TenantAdminDashboard({
       setQuizzes(updated);
       db.saveQuizzes(params.tenant, updated);
       showAlert("🗑️ تم حذف السؤال.");
+    }
+  };
+
+  const handleDeleteAllQuizzes = () => {
+    if (confirm("⚠️ هل أنت متأكد من رغبتك في حذف جميع الأسئلة لهذه المحاضرة بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) {
+      const updated = quizzes.filter(q => !(q.courseId === selectedCourseId && q.lectureNumber === selectedLectureNum));
+      setQuizzes(updated);
+      db.saveQuizzes(params.tenant, updated);
+      showAlert("🗑️ تم حذف جميع الأسئلة لهذه المحاضرة بنجاح.");
     }
   };
 
@@ -635,21 +675,64 @@ export default function TenantAdminDashboard({
 
       {/* Header and Tenant Title */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
-        <div>
-          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-            <LayoutDashboard className="text-blue-600" size={28} /> لوحة تحكم أدمن: {params.tenant}
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">إدارة الطلاب المقبولين، طلبات الالتحاق، استيراد الكروت والكويزات عبر الـ CSV.</p>
+        <div className="flex items-center gap-4">
+          {currentInstitution?.logoUrl ? (
+            <img src={currentInstitution.logoUrl} alt="Logo" className="w-14 h-14 rounded-2xl object-contain bg-white dark:bg-slate-900 border p-1 shadow-md" />
+          ) : (
+            <div className="w-14 h-14 bg-blue-50 dark:bg-slate-900 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center font-extrabold text-2xl border dark:border-slate-800 shadow-inner">
+              {(currentInstitution?.name || params.tenant).charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+              لوحة تحكم أدمن: {currentInstitution?.name || params.tenant}
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">إدارة الطلاب المقبولين، طلبات الالتحاق، استيراد الكروت والكويزات عبر الـ CSV.</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
+          <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all text-slate-700 dark:text-slate-300">
+            <Upload size={14} />
+            <span>تعديل الشعار</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = async (event) => {
+                    const base64 = event.target?.result as string;
+                    const compressed = await compressBase64(base64, 250, 250, 0.75);
+                    
+                    const insts = db.getInstitutions();
+                    const updated = insts.map(inst => {
+                      if (inst.subdomain.toLowerCase() === params.tenant.toLowerCase()) {
+                        return { ...inst, logoUrl: compressed };
+                      }
+                      return inst;
+                    });
+                    db.saveInstitutions(updated);
+                    const target = updated.find(inst => inst.subdomain.toLowerCase() === params.tenant.toLowerCase());
+                    if (target) {
+                      setCurrentInstitution(target);
+                    }
+                    showAlert("✅ تم تحديث شعار المركز بنجاح!");
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+              className="hidden"
+            />
+          </label>
           <button
             onClick={handleAdminLogout}
-            className="bg-red-50 text-red-600 border border-red-100 px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 hover:bg-red-100 transition-all"
+            className="bg-red-550/10 hover:bg-red-500 hover:text-white border border-red-500/25 px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all text-red-500"
           >
             <LogOut size={14} /> خروج
           </button>
-          <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-xs font-bold dark:bg-slate-800 dark:text-blue-400">
-            لوحة الإدارة المتقدمة
+          <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-xs font-bold dark:bg-slate-805 dark:text-blue-400 border dark:border-slate-700">
+            لوحة الإدارة
           </div>
         </div>
       </div>
@@ -781,7 +864,9 @@ export default function TenantAdminDashboard({
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-medium leading-relaxed">
                 اعطِ هذا الرابط للطلاب ليسجلوا بياناتهم وصورهم بأنفسهم: 
                 <a href={`/${params.tenant}/register`} target="_blank" className="text-blue-600 font-bold hover:underline block mt-1">
-                  http://{params.tenant}.localhost:3000/register
+                  {typeof window !== "undefined" && !window.location.origin.includes("localhost") 
+                    ? `${window.location.origin}/${params.tenant}/register` 
+                    : `https://crosses-one.vercel.app/${params.tenant}/register`}
                 </a>
               </p>
             </div>
@@ -905,87 +990,163 @@ export default function TenantAdminDashboard({
                 {courses.map((c) => {
                   const isEditingThis = editingCourseId === c.id;
                   return (
-                    <div key={c.id} className="p-6 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl relative flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-extrabold text-lg text-slate-800 dark:text-white">{c.title}</h4>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEditCourseLinks(c)}
-                              className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
-                            >
-                              <Edit size={12} /> تعديل الروابط
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCourse(c.id)}
-                              className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1"
-                            >
-                              <Trash2 size={12} /> حذف الدورة
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-sm text-slate-500 mb-4">{c.description}</p>
-                        
-                        {/* Links display / Edit forms */}
-                        {isEditingThis ? (
-                          <div className="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 mt-2">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 mb-1">رابط بث المحاضرة الحالي (Zoom/Meet/etc):</label>
-                              <input
-                                type="text"
-                                value={editingCourseData.lectureUrl}
-                                onChange={(e) => setEditingCourseData({ ...editingCourseData, lectureUrl: e.target.value })}
-                                className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 focus:outline-none text-left"
-                                dir="ltr"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 mb-1">رابط جروب الواتس للمتدربين:</label>
-                              <input
-                                type="text"
-                                value={editingCourseData.whatsappGroupUrl}
-                                onChange={(e) => setEditingCourseData({ ...editingCourseData, whatsappGroupUrl: e.target.value })}
-                                className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 focus:outline-none text-left"
-                                dir="ltr"
-                              />
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={handleSaveCourseLinks}
-                                className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1"
-                              >
-                                <Save size={12} /> حفظ
-                              </button>
-                              <button
-                                onClick={() => setEditingCourseId(null)}
-                                className="bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg font-bold"
-                              >
-                                إلغاء
-                              </button>
-                            </div>
-                          </div>
+                    <div key={c.id} className="bg-slate-50 dark:bg-slate-900 border border-slate-105 dark:border-slate-800 rounded-2xl overflow-hidden relative flex flex-col justify-between">
+                      {/* Course Cover Image */}
+                      <div className="h-36 w-full relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                        {c.coverImage ? (
+                          <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="space-y-1.5 text-xs font-medium text-slate-500 bg-slate-100/70 p-3 rounded-xl dark:bg-slate-800/40">
-                            <p className="flex items-center gap-1.5 truncate">
-                              <Link size={12} className="text-blue-500" />
-                              <span>رابط المحاضرة:</span>
-                              <a href={c.lectureUrl} target="_blank" className="text-blue-600 hover:underline select-text truncate font-bold" dir="ltr">
-                                {c.lectureUrl}
-                              </a>
-                            </p>
-                            <p className="flex items-center gap-1.5 truncate">
-                              <MessageSquare size={12} className="text-emerald-500" />
-                              <span>جروب الواتساب:</span>
-                              <a href={c.whatsappGroupUrl} target="_blank" className="text-blue-600 hover:underline select-text truncate font-bold" dir="ltr">
-                                {c.whatsappGroupUrl}
-                              </a>
-                            </p>
-                          </div>
+                          <BookOpen size={36} className="opacity-85" />
                         )}
                       </div>
-                      <div className="flex justify-between items-center border-t border-slate-200/50 dark:border-slate-800 pt-4 mt-4 text-xs font-bold">
-                        <span className="text-slate-400">محاضرات الدورة: {c.lecturesCount} محاضرات</span>
-                        <span className="text-green-600">{c.price} ج.م</span>
+                      
+                      <div className="p-6 flex-grow flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-extrabold text-lg text-slate-800 dark:text-white leading-snug">{c.title}</h4>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => handleEditCourseLinks(c)}
+                                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                              >
+                                <Edit size={12} /> تعديل
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCourse(c.id)}
+                                className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1"
+                              >
+                                <Trash2 size={12} /> حذف
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-slate-500 mb-4">{c.description}</p>
+                          
+                          {/* Links display / Edit forms */}
+                          {isEditingThis ? (
+                            <div className="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mt-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">اسم الدورة:</label>
+                                <input
+                                  type="text"
+                                  value={editingCourseData.title}
+                                  onChange={(e) => setEditingCourseData({ ...editingCourseData, title: e.target.value })}
+                                  className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">الوصف:</label>
+                                <textarea
+                                  value={editingCourseData.description}
+                                  onChange={(e) => setEditingCourseData({ ...editingCourseData, description: e.target.value })}
+                                  className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none min-h-[60px]"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-400 mb-1">عدد المحاضرات:</label>
+                                  <input
+                                    type="number"
+                                    value={editingCourseData.lecturesCount}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, lecturesCount: Number(e.target.value) })}
+                                    className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-400 mb-1">سعر الاشتراك (ج.م):</label>
+                                  <input
+                                    type="number"
+                                    value={editingCourseData.price}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, price: Number(e.target.value) })}
+                                    className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">صورة غلاف الدورة:</label>
+                                <div className="flex items-center gap-2">
+                                  {editingCourseData.coverImage && (
+                                    <img src={editingCourseData.coverImage} alt="Preview" className="w-10 h-10 rounded object-cover border" />
+                                  )}
+                                  <label className="flex-1 cursor-pointer bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 text-center py-1.5 rounded text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                    <span>رفع صورة جديدة</span>
+                                    <input 
+                                      type="file" 
+                                      accept="image/*" 
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onload = async (event) => {
+                                            const base64 = event.target?.result as string;
+                                            const compressed = await compressBase64(base64, 400, 250, 0.7);
+                                            setEditingCourseData(prev => ({ ...prev, coverImage: compressed }));
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      className="hidden" 
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">رابط بث المحاضرة الحالي (Zoom/Meet/etc):</label>
+                                <input
+                                  type="text"
+                                  value={editingCourseData.lectureUrl}
+                                  onChange={(e) => setEditingCourseData({ ...editingCourseData, lectureUrl: e.target.value })}
+                                  className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none text-left"
+                                  dir="ltr"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">رابط جروب الواتس للمتدربين:</label>
+                                <input
+                                  type="text"
+                                  value={editingCourseData.whatsappGroupUrl}
+                                  onChange={(e) => setEditingCourseData({ ...editingCourseData, whatsappGroupUrl: e.target.value })}
+                                  className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none text-left"
+                                  dir="ltr"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleSaveCourseLinks}
+                                  className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1"
+                                >
+                                  <Save size={12} /> حفظ
+                                </button>
+                                <button
+                                  onClick={() => setEditingCourseId(null)}
+                                  className="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 text-xs px-3 py-1.5 rounded-lg font-bold"
+                                >
+                                  إلغاء
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 text-xs font-medium text-slate-500 bg-slate-100/70 p-3 rounded-xl dark:bg-slate-800/40">
+                              <p className="flex items-center gap-1.5 truncate">
+                                <Link size={12} className="text-blue-500" />
+                                <span>رابط المحاضرة:</span>
+                                <a href={c.lectureUrl} target="_blank" className="text-blue-600 hover:underline select-text truncate font-bold" dir="ltr">
+                                  {c.lectureUrl}
+                                </a>
+                              </p>
+                              <p className="flex items-center gap-1.5 truncate">
+                                <MessageSquare size={12} className="text-emerald-500" />
+                                <span>جروب الواتساب:</span>
+                                <a href={c.whatsappGroupUrl} target="_blank" className="text-blue-600 hover:underline select-text truncate font-bold" dir="ltr">
+                                  {c.whatsappGroupUrl}
+                                </a>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center border-t border-slate-200/50 dark:border-slate-800 pt-4 mt-4 text-xs font-bold">
+                          <span className="text-slate-400">محاضرات الدورة: {c.lecturesCount} محاضرات</span>
+                          <span className="text-green-600">{c.price} ج.م</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1038,6 +1199,36 @@ export default function TenantAdminDashboard({
                       onChange={(e) => setNewCourse({ ...newCourse, price: Number(e.target.value) })}
                       className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-2">صورة غلاف الدورة</label>
+                  <div className="flex items-center gap-3">
+                    {newCourse.coverImage && (
+                      <img src={newCourse.coverImage} alt="Cover Preview" className="w-12 h-12 rounded-xl object-cover border bg-white dark:bg-slate-900 p-0.5" />
+                    )}
+                    <label className="flex-1 cursor-pointer bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center gap-2 transition-all">
+                      <Upload size={16} />
+                      <span>{newCourse.coverImage ? "تغيير الغلاف" : "رفع صورة غلاف"}</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                              const base64 = event.target?.result as string;
+                              const compressed = await compressBase64(base64, 400, 250, 0.7);
+                              setNewCourse(prev => ({ ...prev, coverImage: compressed }));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -1154,7 +1345,17 @@ export default function TenantAdminDashboard({
 
               {/* Cards List */}
               <div className="lg:col-span-2 space-y-4">
-                <h4 className="font-extrabold text-lg text-slate-800 dark:text-white mb-2">البطاقات المضافة لهذه المحاضرة ({flashcards.filter(c => c.courseId === selectedCourseId && c.lectureNumber === selectedLectureNum).length})</h4>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-extrabold text-lg text-slate-800 dark:text-white">البطاقات المضافة لهذه المحاضرة ({flashcards.filter(c => c.courseId === selectedCourseId && c.lectureNumber === selectedLectureNum).length})</h4>
+                  {flashcards.filter(c => c.courseId === selectedCourseId && c.lectureNumber === selectedLectureNum).length > 0 && (
+                    <button
+                      onClick={handleDeleteAllFlashcards}
+                      className="bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-650 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                    >
+                      <Trash2 size={12} /> حذف جميع الكروت
+                    </button>
+                  )}
+                </div>
                 
                 {flashcards
                   .filter(c => c.courseId === selectedCourseId && c.lectureNumber === selectedLectureNum)
@@ -1341,7 +1542,17 @@ export default function TenantAdminDashboard({
 
               {/* Quizzes List */}
               <div className="lg:col-span-2 space-y-4">
-                <h4 className="font-extrabold text-lg text-slate-800 dark:text-white mb-2">أسئلة الكويز المضافة لهذه المحاضرة ({quizzes.filter(q => q.courseId === selectedCourseId && q.lectureNumber === selectedLectureNum).length})</h4>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-extrabold text-lg text-slate-800 dark:text-white">أسئلة الكويز المضافة لهذه المحاضرة ({quizzes.filter(q => q.courseId === selectedCourseId && q.lectureNumber === selectedLectureNum).length})</h4>
+                  {quizzes.filter(q => q.courseId === selectedCourseId && q.lectureNumber === selectedLectureNum).length > 0 && (
+                    <button
+                      onClick={handleDeleteAllQuizzes}
+                      className="bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-650 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                    >
+                      <Trash2 size={12} /> حذف جميع الأسئلة
+                    </button>
+                  )}
+                </div>
                 
                 {quizzes
                   .filter(q => q.courseId === selectedCourseId && q.lectureNumber === selectedLectureNum)
