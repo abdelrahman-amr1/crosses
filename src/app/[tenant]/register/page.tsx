@@ -61,9 +61,14 @@ export default function StudentRegistration({
       return;
     }
 
-    if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
-      setErrorMsg("⚠️ الرقم القومي يجب أن يتكون من 14 رقماً صحيحاً.");
-      return;
+    const selectedCourse = courses.find((c) => c.id === selectedCourseId);
+    const isFree = selectedCourse?.price === 0;
+
+    if (!isFree) {
+      if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
+        setErrorMsg("⚠️ الرقم القومي يجب أن يتكون من 14 رقماً صحيحاً.");
+        return;
+      }
     }
 
     if (phone.length < 10 || !/^\d+$/.test(phone)) {
@@ -71,7 +76,7 @@ export default function StudentRegistration({
       return;
     }
 
-    if (!photoBase64) {
+    if (!isFree && !photoBase64) {
       setErrorMsg("⚠️ يرجى رفع صورتك الشخصية لإتمام التسجيل.");
       return;
     }
@@ -80,7 +85,7 @@ export default function StudentRegistration({
     try {
       await db.addApplication(params.tenant, {
         fullName,
-        nationalId,
+        nationalId: isFree ? "00000000000000" : nationalId,
         phone,
         courseId: selectedCourseId,
         photoUrl: photoBase64
@@ -125,6 +130,9 @@ export default function StudentRegistration({
     );
   }
 
+  const selectedCourse = courses.find(c => c.id === selectedCourseId);
+  const isFree = selectedCourse?.price === 0;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 text-right" dir="rtl">
       <div className="text-center mb-10">
@@ -153,21 +161,23 @@ export default function StudentRegistration({
           </div>
 
           {/* National ID */}
-          <div>
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-              <FileText size={16} className="text-blue-500" /> الرقم القومي (14 رقم):
-            </label>
-            <input
-              type="text"
-              required
-              maxLength={14}
-              placeholder="29910203040506"
-              value={nationalId}
-              onChange={(e) => setNationalId(e.target.value.replace(/\D/g, ""))}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
-              dir="ltr"
-            />
-          </div>
+          {!isFree && (
+            <div>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                <FileText size={16} className="text-blue-500" /> الرقم القومي (14 رقم):
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={14}
+                placeholder="29910203040506"
+                value={nationalId}
+                onChange={(e) => setNationalId(e.target.value.replace(/\D/g, ""))}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
+                dir="ltr"
+              />
+            </div>
+          )}
 
           {/* WhatsApp Mobile */}
           <div>
@@ -231,7 +241,7 @@ export default function StudentRegistration({
           {/* Photo Uploader */}
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-              <Upload size={16} className="text-blue-500" /> الصورة الشخصية للمتدرب (الشهادة والملف الشخصي):
+              <Upload size={16} className="text-blue-500" /> الصورة الشخصية للمتدرب {isFree ? "(اختياري)" : "(مطلوب للشهادة)"}:
             </label>
             
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 dark:border-slate-700 border-dashed rounded-2xl hover:border-blue-500 transition-all bg-slate-50 dark:bg-slate-900/50">

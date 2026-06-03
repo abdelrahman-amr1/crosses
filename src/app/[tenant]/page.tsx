@@ -14,8 +14,7 @@ export default function TenantStudentPortal({
   params: { tenant: string };
 }) {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [student, setStudent] = useState<Student | null>(null);
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
@@ -38,7 +37,7 @@ export default function TenantStudentPortal({
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
       if (savedUser) {
         const studentInfo: Student = JSON.parse(savedUser);
-        setUsername(studentInfo.name);
+        setPhoneInput(studentInfo.phone);
         setStudent(studentInfo);
         setIsLoggedIn(true);
         setAvatarPreview(studentInfo.avatarUrl || "");
@@ -61,8 +60,8 @@ export default function TenantStudentPortal({
     e.preventDefault();
     setLoginError("");
 
-    if (!username.trim()) {
-      setLoginError("يرجى إدخال اسم الطالب أو البريد الإلكتروني.");
+    if (!phoneInput.trim()) {
+      setLoginError("يرجى إدخال رقم الموبايل لتسجيل الدخول.");
       return;
     }
 
@@ -70,24 +69,16 @@ export default function TenantStudentPortal({
       // Find student in Supabase
       const allStudents = await db.getStudents(params.tenant);
       const found = allStudents.find(
-        (s) =>
-          s.name.trim().toLowerCase() === username.trim().toLowerCase() ||
-          s.email.trim().toLowerCase() === username.trim().toLowerCase()
+        (s) => s.phone === phoneInput.trim()
       );
 
       if (found) {
-        // Check password (mobile number check)
-        if (password && found.phone !== password) {
-          setLoginError("⚠️ كلمة المرور (رقم الموبايل) غير صحيحة.");
-          return;
-        }
-
         setIsLoggedIn(true);
         setStudent(found);
         setAvatarPreview(found.avatarUrl || "");
         localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(found));
       } else {
-        setLoginError("⚠️ الطالب غير مسجل أو لم تتم الموافقة على طلبه بعد. يمكنك تقديم طلب التحاق بالأسفل.");
+        setLoginError("⚠️ رقم الموبايل غير مسجل أو لم تتم الموافقة على طلبك بعد.");
       }
     } catch (err: any) {
       setLoginError(`⚠️ حدث خطأ أثناء تسجيل الدخول: ${err.message || err}`);
@@ -99,8 +90,8 @@ export default function TenantStudentPortal({
     setIsLoggedIn(false);
     setStudent(null);
     setSelectedCourse(null);
-    setUsername("");
-    setPassword("");
+    setSelectedCourse(null);
+    setPhoneInput("");
   };
 
   // Simulating Profile Avatar Upload
@@ -284,29 +275,16 @@ export default function TenantStudentPortal({
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                البريد الإلكتروني الجامعي / اسم الطالب:
+                رقم الموبايل (المسجل به):
               </label>
               <input
                 type="text"
                 required
-                placeholder="ahmed_01020304050@center.com"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="01012345678"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ""))}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                كلمة المرور (رقم الموبايل الافتراضي):
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="01020304050"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dir="ltr"
               />
             </div>
 
