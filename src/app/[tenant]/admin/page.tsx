@@ -353,8 +353,7 @@ export default function TenantAdminDashboard({
 
 تفاصيل حسابك على المنصة لتسجيل الدخول:
 رابط الدخول: ${entryUrl}
-البريد الإلكتروني: ${autoEmail}
-كلمة المرور: ${autoPassword} (رقم موبايلك)
+رقم الموبايل المسجل: ${app.phone}
 
 بيانات الدورة:
 رقم كشفك في الكورس: #${nextRollNumber}
@@ -372,8 +371,7 @@ export default function TenantAdminDashboard({
     window.open(waLink, "_blank");
 
     showAlert(`✅ تم قبول الطالب بنجاح!
-📧 الحساب الجديد: ${autoEmail}
-🔑 كلمة المرور: ${autoPassword}
+📱 رقم الموبايل المسجل للدخول: ${app.phone}
 📈 رقم الكشف: #${nextRollNumber}
 🔗 تم فتح الواتساب لإشعار الطالب بالرسالة الرسمية.`);
   };
