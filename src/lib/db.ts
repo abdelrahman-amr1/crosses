@@ -80,6 +80,10 @@ export interface Course {
   coverImage?: string;
   lectureUrl: string; // رابط المحاضرة القابل للتعديل
   whatsappGroupUrl: string; // رابط جروب الواتساب للدورة
+  isAttendanceOpen: boolean;
+  isFlashcardsOpen: boolean;
+  isQuizOpen: boolean;
+  isEvaluationOpen: boolean;
 }
 
 // Global base URL detection for absolute fetch calls during SSR
@@ -195,7 +199,11 @@ export const db = {
         c.price, 
         c.cover_image as "coverImage", 
         c.lecture_url as "lectureUrl", 
-        c.whatsapp_group_url as "whatsappGroupUrl"
+        c.whatsapp_group_url as "whatsappGroupUrl",
+        COALESCE(c.is_attendance_open, true) as "isAttendanceOpen",
+        COALESCE(c.is_flashcards_open, true) as "isFlashcardsOpen",
+        COALESCE(c.is_quiz_open, true) as "isQuizOpen",
+        COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen"
       FROM courses c
       JOIN institutions i ON c.institution_id = i.id
       WHERE i.subdomain = $1
@@ -215,8 +223,8 @@ export const db = {
     for (const c of courses) {
       courseIds.push(c.id);
       await runQuery(`
-        INSERT INTO courses (id, institution_id, title, description, price, lectures_count, cover_image, lecture_url, whatsapp_group_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO courses (id, institution_id, title, description, price, lectures_count, cover_image, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
@@ -224,8 +232,15 @@ export const db = {
           lectures_count = EXCLUDED.lectures_count,
           cover_image = EXCLUDED.cover_image,
           lecture_url = EXCLUDED.lecture_url,
-          whatsapp_group_url = EXCLUDED.whatsapp_group_url;
-      `, [c.id, instId, c.title, c.description, c.price, c.lecturesCount, c.coverImage || null, c.lectureUrl, c.whatsappGroupUrl]);
+          whatsapp_group_url = EXCLUDED.whatsapp_group_url,
+          is_attendance_open = EXCLUDED.is_attendance_open,
+          is_flashcards_open = EXCLUDED.is_flashcards_open,
+          is_quiz_open = EXCLUDED.is_quiz_open,
+          is_evaluation_open = EXCLUDED.is_evaluation_open;
+      `, [
+        c.id, instId, c.title, c.description, c.price, c.lecturesCount, c.coverImage || null, c.lectureUrl, c.whatsappGroupUrl,
+        c.isAttendanceOpen !== false, c.isFlashcardsOpen !== false, c.isQuizOpen !== false, c.isEvaluationOpen !== false
+      ]);
     }
 
     // 3. Delete courses not in the list for this institution

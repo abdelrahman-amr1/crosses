@@ -235,6 +235,13 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
               >
                 {/* 1. ATTENDANCE & ZOOM */}
                 {activeTab === "attendance" && (
+                  course.isAttendanceOpen === false ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
+                       <Shield size={48} className="text-slate-300 mb-4" />
+                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
+                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
+                    </div>
+                  ) : (
                   <div className="flex flex-col items-center justify-center text-center py-10 flex-grow">
                     <div className="w-20 h-20 bg-blue-50 dark:bg-slate-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6">
                       <Video size={40} />
@@ -278,10 +285,19 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       </button>
                     )}
                   </div>
+                  )
+
                 )}
 
                 {/* 2. FLASHCARDS WITH COPY PROTECTION */}
                 {activeTab === "flashcards" && (
+                  course.isFlashcardsOpen === false ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
+                       <Shield size={48} className="text-slate-300 mb-4" />
+                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
+                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
+                    </div>
+                  ) : (
                   <CopyProtection active={true}>
                     <div className="py-4">
                       {flashcards.length > 0 ? (
@@ -295,10 +311,18 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       )}
                     </div>
                   </CopyProtection>
+                  )
                 )}
 
                 {/* 3. INTERACTIVE QUIZ WITH COPY PROTECTION */}
                 {activeTab === "quiz" && (
+                  course.isQuizOpen === false ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
+                       <Shield size={48} className="text-slate-300 mb-4" />
+                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
+                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
+                    </div>
+                  ) : (
                   <CopyProtection active={true}>
                     <div className="py-2">
                       <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
@@ -400,10 +424,18 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       )}
                     </div>
                   </CopyProtection>
+                  )
                 )}
 
                 {/* 4. STUDENT SELF EVALUATION ("مستواي وتقييمي لنفسي") */}
                 {activeTab === "evaluation" && (
+                  course.isEvaluationOpen === false ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
+                       <Shield size={48} className="text-slate-300 mb-4" />
+                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
+                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
+                    </div>
+                  ) : (
                   <div className="py-2">
                     <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">تقييمي الذاتي لمستواي</h3>
                     <p className="text-sm text-slate-500 mb-6">
@@ -509,6 +541,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       </div>
                     )}
                   </div>
+                  )
                 )}
               </motion.div>
             </AnimatePresence>

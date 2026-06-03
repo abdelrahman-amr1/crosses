@@ -88,7 +88,11 @@ export default function TenantAdminDashboard({
   // Course edit & addition forms
   const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
-  const [editingCourseData, setEditingCourseData] = useState({ title: "", description: "", price: 500, lecturesCount: 12, lectureUrl: "", whatsappGroupUrl: "", coverImage: "" });
+  const [editingCourseData, setEditingCourseData] = useState({ 
+    title: "", description: "", price: 500, lecturesCount: 12, 
+    lectureUrl: "", whatsappGroupUrl: "", coverImage: "",
+    isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true
+  });
 
   // Flashcard manual form
   const [newFlashcard, setNewFlashcard] = useState<{ question: string; answer: string; difficulty: "easy" | "medium" | "hard" }>({ question: "", answer: "", difficulty: "medium" });
@@ -439,7 +443,11 @@ export default function TenantAdminDashboard({
         lecturesCount: Number(newCourse.lecturesCount),
         lectureUrl: "https://meet.google.com/abc-defg-hij",
         whatsappGroupUrl: "https://chat.whatsapp.com/G1x2y3z4",
-        coverImage: newCourse.coverImage || undefined
+        coverImage: newCourse.coverImage || undefined,
+        isAttendanceOpen: true,
+        isFlashcardsOpen: true,
+        isQuizOpen: true,
+        isEvaluationOpen: true
       };
 
       const updated = [...courses, courseObj];
@@ -459,7 +467,11 @@ export default function TenantAdminDashboard({
       lecturesCount: course.lecturesCount,
       lectureUrl: course.lectureUrl,
       whatsappGroupUrl: course.whatsappGroupUrl,
-      coverImage: course.coverImage || ""
+      coverImage: course.coverImage || "",
+      isAttendanceOpen: course.isAttendanceOpen !== false,
+      isFlashcardsOpen: course.isFlashcardsOpen !== false,
+      isQuizOpen: course.isQuizOpen !== false,
+      isEvaluationOpen: course.isEvaluationOpen !== false
     });
   };
 
@@ -475,7 +487,11 @@ export default function TenantAdminDashboard({
               lecturesCount: Number(editingCourseData.lecturesCount),
               lectureUrl: editingCourseData.lectureUrl, 
               whatsappGroupUrl: editingCourseData.whatsappGroupUrl,
-              coverImage: editingCourseData.coverImage || undefined
+              coverImage: editingCourseData.coverImage || undefined,
+              isAttendanceOpen: editingCourseData.isAttendanceOpen,
+              isFlashcardsOpen: editingCourseData.isFlashcardsOpen,
+              isQuizOpen: editingCourseData.isQuizOpen,
+              isEvaluationOpen: editingCourseData.isEvaluationOpen
             } 
           : c
       );
@@ -1395,6 +1411,44 @@ export default function TenantAdminDashboard({
                                   className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none text-left"
                                   dir="ltr"
                                 />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 mt-4 mb-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={editingCourseData.isAttendanceOpen}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isAttendanceOpen: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                  />
+                                  تفعيل الحضور
+                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={editingCourseData.isFlashcardsOpen}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isFlashcardsOpen: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                  />
+                                  تفعيل الكروت التعليمية
+                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={editingCourseData.isQuizOpen}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isQuizOpen: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                  />
+                                  تفعيل الكويزات
+                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={editingCourseData.isEvaluationOpen}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isEvaluationOpen: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                  />
+                                  تفعيل التقييم الذاتي
+                                </label>
                               </div>
                               <div className="flex gap-2">
                                 <button
