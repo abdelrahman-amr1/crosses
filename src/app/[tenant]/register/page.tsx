@@ -62,7 +62,7 @@ export default function StudentRegistration({
     }
 
     const selectedCourse = courses.find((c) => c.id === selectedCourseId);
-    const isFree = selectedCourse?.price === 0;
+    const isFree = Number(selectedCourse?.price) === 0;
 
     if (!isFree) {
       if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
@@ -131,7 +131,7 @@ export default function StudentRegistration({
   }
 
   const selectedCourse = courses.find(c => c.id === selectedCourseId);
-  const isFree = selectedCourse?.price === 0;
+  const isFree = Number(selectedCourse?.price) === 0;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 text-right" dir="rtl">
