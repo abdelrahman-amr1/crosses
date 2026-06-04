@@ -327,18 +327,19 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                         !quizSubmitted ? (
                           <div className="space-y-6">
                             {quizQuestions.map((question, qIdx) => (
-                              <div key={question.id} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
+                              <div key={question?.id || qIdx} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
-                                  {qIdx + 1}. {question.question}
+                                  {qIdx + 1}. {question?.question || "سؤال مفقود"}
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  {question.options.map((option, oIdx) => {
-                                    const isSelected = quizAnswers[question.id] === oIdx;
+                                  {question?.options?.map((option, oIdx) => {
+                                    const qId = question?.id || String(qIdx);
+                                    const isSelected = quizAnswers[qId] === oIdx;
                                     return (
                                       <button
                                         key={oIdx}
                                         type="button"
-                                        onClick={() => setQuizAnswers({ ...quizAnswers, [question.id]: oIdx })}
+                                        onClick={() => setQuizAnswers({ ...quizAnswers, [qId]: oIdx })}
                                         className={`px-4 py-3 rounded-xl border text-right font-bold transition-all ${
                                           isSelected
                                             ? "bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950 dark:border-blue-500 dark:text-blue-300"
@@ -379,10 +380,10 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                                 {quizQuestions.map((q, idx) => {
                                   const isCorrect = quizAnswers[q.id] === q.correctOption;
                                   return (
-                                    <div key={q.id} className="flex justify-between items-center text-sm font-bold">
-                                      <span>سؤال {idx + 1}: {q.question?.substring(0, 30) || "سؤال بدون نص"}...</span>
+                                    <div key={q?.id || idx} className="flex justify-between items-center text-sm font-bold">
+                                      <span>سؤال {idx + 1}: {q?.question?.substring(0, 30) || "سؤال بدون نص"}...</span>
                                       <span className={isCorrect ? "text-green-600" : "text-red-500"}>
-                                        {isCorrect ? "✓ إجابة صحيحة" : `✗ خطأ (الصح: ${q.options[q.correctOption]})`}
+                                        {isCorrect ? "✓ إجابة صحيحة" : `✗ خطأ (الصح: ${q?.options?.[q?.correctOption] || ""})`}
                                       </span>
                                     </div>
                                   );

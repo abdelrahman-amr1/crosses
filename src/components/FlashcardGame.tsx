@@ -104,7 +104,7 @@ export default function FlashcardGame({ initialCards }: { initialCards: Flashcar
             >
               <span className="text-blue-500 font-bold mb-4 bg-blue-50 px-4 py-1 rounded-full text-sm">السؤال</span>
               <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white leading-relaxed">
-                {cards[currentIndex].question}
+                {cards[currentIndex]?.question || "سؤال مفقود"}
               </h3>
               <p className="absolute bottom-6 text-slate-400 text-sm">اضغط على البطاقة لقلبها</p>
             </motion.div>
@@ -119,7 +119,7 @@ export default function FlashcardGame({ initialCards }: { initialCards: Flashcar
             >
               <span className="text-blue-200 font-bold mb-4 bg-blue-700 px-4 py-1 rounded-full text-sm">الإجابة</span>
               <h3 className="text-2xl sm:text-3xl font-bold leading-relaxed mb-8">
-                {cards[currentIndex].answer}
+                {cards[currentIndex]?.answer || "إجابة مفقودة"}
               </h3>
               
               <div className="absolute bottom-6 w-full px-8 flex justify-between gap-4">
