@@ -153,11 +153,12 @@ export const db = {
         UPDATE institutions 
         SET 
           name = $1, 
-          logo_url = $2, 
-          admin_email = $3, 
-          admin_password = $4 
-        WHERE id = $5;
-      `, [inst.name, inst.logoUrl, inst.adminEmail, inst.adminPassword, inst.id]);
+          subdomain = $2,
+          logo_url = $3, 
+          admin_email = $4, 
+          admin_password = $5 
+        WHERE id = $6;
+      `, [inst.name, inst.subdomain, inst.logoUrl, inst.adminEmail, inst.adminPassword, inst.id]);
     }
   },
   

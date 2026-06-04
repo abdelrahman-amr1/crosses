@@ -19,6 +19,7 @@ export default function SuperAdminPortal() {
   // Edit Institution states
   const [editingInstId, setEditingInstId] = useState<string | null>(null);
   const [editingInstName, setEditingInstName] = useState("");
+  const [editingInstSubdomain, setEditingInstSubdomain] = useState("");
 
   // Create Center states
   const [name, setName] = useState("");
@@ -69,18 +70,31 @@ export default function SuperAdminPortal() {
   };
 
   const handleSaveEdit = async (id: string) => {
-    if (!editingInstName.trim()) return;
+    if (!editingInstName.trim() || !editingInstSubdomain.trim()) return;
     
+    const cleanSubdomain = editingInstSubdomain.trim().toLowerCase();
+    if (!/^[a-z0-9-]+$/.test(cleanSubdomain)) {
+      setErrorMsg("⚠️ الرابط الفرعي يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وعلامة - فقط.");
+      return;
+    }
+
     try {
+      const exists = institutions.find(inst => inst.subdomain === cleanSubdomain && inst.id !== id);
+      if (exists) {
+        setErrorMsg("⚠️ هذا الرابط الفرعي مستخدم بالفعل لمركز آخر.");
+        return;
+      }
+
       const updatedList = institutions.map(inst => 
-        inst.id === id ? { ...inst, name: editingInstName.trim() } : inst
+        inst.id === id ? { ...inst, name: editingInstName.trim(), subdomain: cleanSubdomain } : inst
       );
       setInstitutions(updatedList);
       await db.saveInstitutions(updatedList);
       setEditingInstId(null);
-      setSuccessMsg("تم تحديث اسم المركز بنجاح!");
+      setErrorMsg("");
+      setSuccessMsg("تم تحديث بيانات المركز بنجاح!");
     } catch (err: any) {
-      setErrorMsg(`⚠️ فشل تحديث المركز: ${err.message || err}`);
+      setErrorMsg(`⚠️ فشل التحديث: ${err.message || err}`);
     }
   };
 
@@ -273,28 +287,37 @@ export default function SuperAdminPortal() {
                     )}
                     <div>
                       {editingInstId === inst.id ? (
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex flex-col gap-2 mb-2 w-full">
                           <input
                             type="text"
                             value={editingInstName}
                             onChange={(e) => setEditingInstName(e.target.value)}
-                            className="px-3 py-1.5 text-sm font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="اسم المركز"
+                            className="px-3 py-1.5 text-sm font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
                             autoFocus
                           />
-                          <button
-                            onClick={() => handleSaveEdit(inst.id)}
-                            className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors"
-                            title="حفظ"
-                          >
-                            <Save size={16} />
-                          </button>
-                          <button
-                            onClick={() => setEditingInstId(null)}
-                            className="p-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors"
-                            title="إلغاء"
-                          >
-                            <X size={16} />
-                          </button>
+                          <input
+                            type="text"
+                            value={editingInstSubdomain}
+                            onChange={(e) => setEditingInstSubdomain(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
+                            placeholder="الرابط الفرعي (subdomain)"
+                            dir="ltr"
+                            className="px-3 py-1.5 text-sm font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-left"
+                          />
+                          <div className="flex gap-2 justify-end mt-1">
+                            <button
+                              onClick={() => handleSaveEdit(inst.id)}
+                              className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors font-bold text-xs flex items-center gap-1"
+                            >
+                              <Save size={14} /> حفظ
+                            </button>
+                            <button
+                              onClick={() => setEditingInstId(null)}
+                              className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors font-bold text-xs flex items-center gap-1"
+                            >
+                              <X size={14} /> إلغاء
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -303,9 +326,10 @@ export default function SuperAdminPortal() {
                             onClick={() => {
                               setEditingInstId(inst.id);
                               setEditingInstName(inst.name);
+                              setEditingInstSubdomain(inst.subdomain);
                             }}
                             className="text-slate-400 hover:text-blue-600 transition-colors"
-                            title="تعديل اسم المركز"
+                            title="تعديل المنصة"
                           >
                             <Edit size={16} />
                           </button>
