@@ -380,7 +380,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                                   const isCorrect = quizAnswers[q.id] === q.correctOption;
                                   return (
                                     <div key={q.id} className="flex justify-between items-center text-sm font-bold">
-                                      <span>سؤال {idx + 1}: {q.question.substring(0, 30)}...</span>
+                                      <span>سؤال {idx + 1}: {q.question?.substring(0, 30) || "سؤال بدون نص"}...</span>
                                       <span className={isCorrect ? "text-green-600" : "text-red-500"}>
                                         {isCorrect ? "✓ إجابة صحيحة" : `✗ خطأ (الصح: ${q.options[q.correctOption]})`}
                                       </span>
