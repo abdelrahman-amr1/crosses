@@ -16,7 +16,8 @@ import {
   ArrowRight,
   Shield,
   Sparkles,
-  Upload
+  Upload,
+  Lock
 } from "lucide-react";
 import { db, Course, Flashcard, QuizQuestion, SelfEvaluation } from "@/lib/db";
 import FlashcardGame from "./FlashcardGame";
@@ -216,25 +217,30 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
           {/* Custom Navigation Tabs */}
           <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl flex justify-start gap-1 w-full overflow-x-auto">
             {[
-              ...(currentControls.isAttendanceOpen ? [{ id: "attendance", label: "الحضور والمحاضرة", icon: <Video size={18} /> }] : []),
-              ...(currentControls.isFlashcardsOpen ? [{ id: "flashcards", label: "البطاقات التعليمية", icon: <BookOpen size={18} /> }] : []),
-              ...(currentControls.isQuizOpen ? [{ id: "quiz", label: "كويز المحاضرة", icon: <HelpCircle size={18} /> }] : []),
-              ...(currentControls.isEvaluationOpen ? [{ id: "evaluation", label: "مستواي وتقييمي لنفسي", icon: <FileText size={18} /> }] : []),
-              ...(currentControls.isTasksOpen ? [{ id: "tasks", label: "تاسك المحاضرة", icon: <Award size={18} /> }] : [])
+              { id: "attendance", label: "الحضور والمحاضرة", icon: <Video size={18} />, isOpen: currentControls.isAttendanceOpen },
+              { id: "flashcards", label: "البطاقات التعليمية", icon: <BookOpen size={18} />, isOpen: currentControls.isFlashcardsOpen },
+              { id: "quiz", label: "كويز المحاضرة", icon: <HelpCircle size={18} />, isOpen: currentControls.isQuizOpen },
+              { id: "evaluation", label: "مستواي وتقييمي لنفسي", icon: <FileText size={18} />, isOpen: currentControls.isEvaluationOpen },
+              { id: "tasks", label: "تاسك المحاضرة", icon: <Award size={18} />, isOpen: currentControls.isTasksOpen }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
+              const isDisabled = !tab.isOpen;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as string)}
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && setActiveTab(tab.id as string)}
                   className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
-                    isActive
+                    isDisabled 
+                      ? "opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 dark:bg-slate-800/50 dark:text-slate-500" 
+                      : isActive
                       ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-100 dark:border-slate-700"
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-white"
                   }`}
                 >
                   {tab.icon}
                   <span>{tab.label}</span>
+                  {isDisabled && <Lock size={14} className="ml-1 opacity-70" />}
                 </button>
               );
             })}
