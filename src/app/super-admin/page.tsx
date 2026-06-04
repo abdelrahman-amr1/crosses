@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, Institution } from "@/lib/db";
-import { School, PlusCircle, Globe, ExternalLink, ShieldCheck, Landmark, Sparkles, CheckCircle2, Lock, User, LogOut, Upload } from "lucide-react";
+import { School, PlusCircle, Globe, ExternalLink, ShieldCheck, Landmark, Sparkles, CheckCircle2, Lock, User, LogOut, Upload, Edit, Save, X } from "lucide-react";
 import { compressBase64 } from "@/lib/imageCompressor";
 
 export default function SuperAdminPortal() {
@@ -15,6 +15,10 @@ export default function SuperAdminPortal() {
   const [superEmail, setSuperEmail] = useState("");
   const [superPassword, setSuperPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  // Edit Institution states
+  const [editingInstId, setEditingInstId] = useState<string | null>(null);
+  const [editingInstName, setEditingInstName] = useState("");
 
   // Create Center states
   const [name, setName] = useState("");
@@ -62,6 +66,22 @@ export default function SuperAdminPortal() {
     setIsLoggedIn(false);
     setSuperEmail("");
     setSuperPassword("");
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editingInstName.trim()) return;
+    
+    try {
+      const updatedList = institutions.map(inst => 
+        inst.id === id ? { ...inst, name: editingInstName.trim() } : inst
+      );
+      setInstitutions(updatedList);
+      await db.saveInstitutions(updatedList);
+      setEditingInstId(null);
+      setSuccessMsg("تم تحديث اسم المركز بنجاح!");
+    } catch (err: any) {
+      setErrorMsg(`⚠️ فشل تحديث المركز: ${err.message || err}`);
+    }
   };
 
   const handleCreateCenter = async (e: React.FormEvent) => {
@@ -252,7 +272,45 @@ export default function SuperAdminPortal() {
                       </div>
                     )}
                     <div>
-                      <h4 className="font-extrabold text-slate-800 dark:text-white text-lg">{inst.name}</h4>
+                      {editingInstId === inst.id ? (
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            type="text"
+                            value={editingInstName}
+                            onChange={(e) => setEditingInstName(e.target.value)}
+                            className="px-3 py-1.5 text-sm font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(inst.id)}
+                            className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors"
+                            title="حفظ"
+                          >
+                            <Save size={16} />
+                          </button>
+                          <button
+                            onClick={() => setEditingInstId(null)}
+                            className="p-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors"
+                            title="إلغاء"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-extrabold text-slate-800 dark:text-white text-lg">{inst.name}</h4>
+                          <button
+                            onClick={() => {
+                              setEditingInstId(inst.id);
+                              setEditingInstName(inst.name);
+                            }}
+                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                            title="تعديل اسم المركز"
+                          >
+                            <Edit size={16} />
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-slate-400 font-bold mt-1">تاريخ الإنشاء: {new Date(inst.createdAt).toLocaleDateString("ar-EG")}</p>
                     </div>
                   </div>
