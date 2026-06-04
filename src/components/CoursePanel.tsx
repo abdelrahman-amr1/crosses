@@ -15,7 +15,8 @@ import {
   Award,
   ArrowRight,
   Shield,
-  Sparkles
+  Sparkles,
+  Upload
 } from "lucide-react";
 import { db, Course, Flashcard, QuizQuestion, SelfEvaluation } from "@/lib/db";
 import FlashcardGame from "./FlashcardGame";
@@ -30,7 +31,7 @@ interface CoursePanelProps {
 
 export default function CoursePanel({ course, tenant, studentName, onBack }: CoursePanelProps) {
   const [selectedLecture, setSelectedLecture] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<"attendance" | "flashcards" | "quiz" | "evaluation">("attendance");
+  const [activeTab, setActiveTab] = useState<string>("attendance");
   
   // Data state
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
@@ -49,6 +50,10 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
   const [evalNotes, setEvalNotes] = useState("");
   const [evalHistory, setEvalHistory] = useState<SelfEvaluation[]>([]);
   const [evalSuccessMsg, setEvalSuccessMsg] = useState("");
+
+  // Tasks state
+  const [taskUploaded, setTaskUploaded] = useState(false);
+  const [taskUploading, setTaskUploading] = useState(false);
 
   // Load data for the selected lecture
   useEffect(() => {
@@ -76,12 +81,24 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
           ev => ev.lectureNumber === selectedLecture
         );
         setEvalHistory(history);
+
+        // Load tasks
+        const tasks = await db.getStudentTasks(course.id, selectedLecture);
+        setTaskUploaded(tasks.some(t => t.studentPhone === studentName));
       } catch (err) {
         console.error("Failed to load lecture data:", err);
       }
     }
     loadData();
   }, [selectedLecture, course.id, tenant, studentName]);
+
+  const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "" };
+  const currentControls = course.lectureControls?.[selectedLecture] || defaultControls;
+
+  useEffect(() => {
+    // If current active tab is not available, switch to attendance
+    if (!currentControls.isAttendanceOpen && activeTab === "attendance") setActiveTab("flashcards");
+  }, [currentControls, activeTab]);
 
   // Handle Attendance via DB
   const handleAttend = async () => {
@@ -197,19 +214,20 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
         <div className="lg:col-span-3 flex flex-col gap-6">
           
           {/* Custom Navigation Tabs */}
-          <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl flex justify-between gap-1 w-full overflow-x-auto">
+          <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl flex justify-start gap-1 w-full overflow-x-auto">
             {[
-              { id: "attendance", label: "الحضور والمحاضرة", icon: <Video size={18} /> },
-              { id: "flashcards", label: "البطاقات التعليمية", icon: <BookOpen size={18} /> },
-              { id: "quiz", label: "كويز المحاضرة", icon: <HelpCircle size={18} /> },
-              { id: "evaluation", label: "مستواي وتقييمي لنفسي", icon: <FileText size={18} /> }
+              ...(currentControls.isAttendanceOpen ? [{ id: "attendance", label: "الحضور والمحاضرة", icon: <Video size={18} /> }] : []),
+              ...(currentControls.isFlashcardsOpen ? [{ id: "flashcards", label: "البطاقات التعليمية", icon: <BookOpen size={18} /> }] : []),
+              ...(currentControls.isQuizOpen ? [{ id: "quiz", label: "كويز المحاضرة", icon: <HelpCircle size={18} /> }] : []),
+              ...(currentControls.isEvaluationOpen ? [{ id: "evaluation", label: "مستواي وتقييمي لنفسي", icon: <FileText size={18} /> }] : []),
+              ...(currentControls.isTasksOpen ? [{ id: "tasks", label: "تاسك المحاضرة", icon: <Award size={18} /> }] : [])
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
+                  onClick={() => setActiveTab(tab.id as string)}
+                  className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
                     isActive
                       ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-100 dark:border-slate-700"
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-white"
@@ -235,13 +253,6 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
               >
                 {/* 1. ATTENDANCE & ZOOM */}
                 {activeTab === "attendance" && (
-                  course.isAttendanceOpen === false ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
-                       <Shield size={48} className="text-slate-300 mb-4" />
-                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
-                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
-                    </div>
-                  ) : (
                   <div className="flex flex-col items-center justify-center text-center py-10 flex-grow">
                     <div className="w-20 h-20 bg-blue-50 dark:bg-slate-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6">
                       <Video size={40} />
@@ -285,44 +296,20 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       </button>
                     )}
                   </div>
-                  )
-
                 )}
 
                 {/* 2. FLASHCARDS WITH COPY PROTECTION */}
                 {activeTab === "flashcards" && (
-                  course.isFlashcardsOpen === false ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
-                       <Shield size={48} className="text-slate-300 mb-4" />
-                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
-                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
-                    </div>
-                  ) : (
                   <CopyProtection active={true}>
                     <div className="py-4">
-                      {flashcards.length > 0 ? (
-                        <FlashcardGame key={`fc-game-${selectedLecture}`} initialCards={flashcards} />
-                      ) : (
-                        <div className="text-center py-16">
-                          <BookOpen size={48} className="mx-auto text-slate-300 mb-4" />
-                          <h3 className="text-xl font-bold text-slate-700 dark:text-white mb-2">لا توجد كروت لهذه المحاضرة</h3>
-                          <p className="text-slate-400">لم يقم أدمن المركز بإضافة أو رفع أسئلة فلاش لهذه المحاضرة بعد.</p>
-                        </div>
-                      )}
+                      <FlashcardGame key={`fc-game-${selectedLecture}`} initialCards={flashcards} />
                     </div>
                   </CopyProtection>
                   )
-                )}
+                }
 
                 {/* 3. INTERACTIVE QUIZ WITH COPY PROTECTION */}
                 {activeTab === "quiz" && (
-                  course.isQuizOpen === false ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
-                       <Shield size={48} className="text-slate-300 mb-4" />
-                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
-                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
-                    </div>
-                  ) : (
                   <CopyProtection active={true}>
                     <div className="py-2">
                       <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
@@ -424,18 +411,10 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       )}
                     </div>
                   </CopyProtection>
-                  )
                 )}
 
                 {/* 4. STUDENT SELF EVALUATION ("مستواي وتقييمي لنفسي") */}
                 {activeTab === "evaluation" && (
-                  course.isEvaluationOpen === false ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center h-full">
-                       <Shield size={48} className="text-slate-300 mb-4" />
-                       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">غير متاح الآن</h3>
-                       <p className="text-slate-500 mt-2 font-bold">سيتم التشغيل في الوقت المحدد من قبل الإدارة.</p>
-                    </div>
-                  ) : (
                   <div className="py-2">
                     <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">تقييمي الذاتي لمستواي</h3>
                     <p className="text-sm text-slate-500 mb-6">
@@ -541,7 +520,54 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       </div>
                     )}
                   </div>
-                  )
+                )}
+
+                {/* 5. TASKS */}
+                {activeTab === "tasks" && (
+                  <div className="flex flex-col h-full items-start">
+                     <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">التاسك المطلوب:</h3>
+                     <p className="text-slate-600 dark:text-slate-400 mb-6 font-bold leading-relaxed">{currentControls.taskDescription}</p>
+                     
+                     {currentControls.taskFileUrl && (
+                       <a href={currentControls.taskFileUrl} target="_blank" rel="noopener noreferrer" className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-4 py-3 rounded-xl font-bold flex gap-2 items-center mb-8 border border-blue-100 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                         <FileText size={20} /> تحميل ملف التاسك
+                       </a>
+                     )}
+
+                     <div className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 mt-auto">
+                        <h4 className="font-bold text-slate-800 dark:text-white mb-4">تسليم التاسك الخاص بك:</h4>
+                        {taskUploaded ? (
+                           <div className="flex items-center gap-3 text-green-600 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/30 p-4 rounded-xl border border-green-100 dark:border-green-800">
+                              <CheckCircle2 size={24} /> تم تسليم التاسك بنجاح! شكراً لالتزامك.
+                           </div>
+                        ) : (
+                           <div className="flex flex-col gap-4">
+                              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer group">
+                                 <Upload size={32} className="text-slate-400 group-hover:text-blue-500 mb-3 transition-colors" />
+                                 <span className="font-bold text-slate-600 dark:text-slate-400">اضغط لرفع ملف التاسك (PDF أو صورة)</span>
+                                 <input type="file" accept="image/*,application/pdf" className="hidden" onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if(file) {
+                                       setTaskUploading(true);
+                                       const reader = new FileReader();
+                                       reader.onload = async (event) => {
+                                          const base64 = event.target?.result as string;
+                                          try {
+                                             await db.saveStudentTask(course.id, selectedLecture, studentName, base64);
+                                             setTaskUploaded(true);
+                                             alert("✅ تم تسليم التاسك بنجاح!");
+                                          } catch(err) { alert("حدث خطأ أثناء التسليم"); }
+                                          setTaskUploading(false);
+                                       };
+                                       reader.readAsDataURL(file);
+                                    }
+                                 }} />
+                              </label>
+                              {taskUploading && <span className="text-blue-600 dark:text-blue-400 font-bold text-sm text-center">جاري الرفع... الرجاء الانتظار</span>}
+                           </div>
+                        )}
+                     </div>
+                  </div>
                 )}
               </motion.div>
             </AnimatePresence>

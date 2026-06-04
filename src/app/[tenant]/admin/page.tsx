@@ -33,7 +33,7 @@ import {
   Video,
   Award
 } from "lucide-react";
-import { db, Course, Flashcard, QuizQuestion, Student, Application, Institution, AttendanceRecord } from "@/lib/db";
+import { db, Course, Application, Flashcard, QuizQuestion, AttendanceRecord, Institution, LectureControl, Student, StudentTask } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
 
 function generateUUID(): string {
@@ -75,6 +75,8 @@ export default function TenantAdminDashboard({
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [attendanceEvals, setAttendanceEvals] = useState<Record<string, any>>({});
   const [attendanceScores, setAttendanceScores] = useState<Record<string, number>>({});
+  const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
+  const [tenantProgress, setTenantProgress] = useState<Record<string, { attendance: number, quiz: number, task: number }>>({});
   const [attendanceCourseId, setAttendanceCourseId] = useState<string>("");
   const [attendanceLectureNum, setAttendanceLectureNum] = useState<number>(1);
 
@@ -89,10 +91,12 @@ export default function TenantAdminDashboard({
   const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingCourseData, setEditingCourseData] = useState({ 
-    title: "", description: "", price: 500, lecturesCount: 12, 
-    lectureUrl: "", whatsappGroupUrl: "", coverImage: "",
-    isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true
+    title: "", description: "", price: 0, lecturesCount: 1, 
+    coverImage: "", lectureUrl: "", whatsappGroupUrl: "",
+    isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true,
+    lectureControls: {} as Record<number, LectureControl>
   });
+  const [editingLectureNum, setEditingLectureNum] = useState<number>(1);
 
   // Flashcard manual form
   const [newFlashcard, setNewFlashcard] = useState<{ question: string; answer: string; difficulty: "easy" | "medium" | "hard" }>({ question: "", answer: "", difficulty: "medium" });
@@ -229,6 +233,9 @@ export default function TenantAdminDashboard({
         if (inst) {
           setCurrentInstitution(inst);
         }
+        
+        const prog = await db.getTenantProgress(params.tenant);
+        setTenantProgress(prog);
       } catch (err) {
         console.error("Error loading admin data:", err);
       }
@@ -249,11 +256,13 @@ export default function TenantAdminDashboard({
       Promise.all([
         db.getAttendances(params.tenant, attendanceCourseId, attendanceLectureNum),
         db.getAllEvaluationsForLecture(params.tenant, attendanceLectureNum),
-        db.getAllQuizScoresForLecture(params.tenant, attendanceCourseId, attendanceLectureNum)
-      ]).then(([records, evals, scores]) => {
+        db.getAllQuizScoresForLecture(params.tenant, attendanceCourseId, attendanceLectureNum),
+        db.getStudentTasks(attendanceCourseId, attendanceLectureNum)
+      ]).then(([records, evals, scores, tasks]) => {
         setAttendanceRecords(records);
         setAttendanceEvals(evals);
         setAttendanceScores(scores);
+        setStudentTasks(tasks);
       }).catch(console.error);
     }
   }, [activeTab, attendanceCourseId, attendanceLectureNum, params.tenant]);
@@ -445,7 +454,8 @@ export default function TenantAdminDashboard({
         isAttendanceOpen: true,
         isFlashcardsOpen: true,
         isQuizOpen: true,
-        isEvaluationOpen: true
+        isEvaluationOpen: true,
+        lectureControls: {}
       };
 
       const updated = [...courses, courseObj];
@@ -469,8 +479,10 @@ export default function TenantAdminDashboard({
       isAttendanceOpen: course.isAttendanceOpen !== false,
       isFlashcardsOpen: course.isFlashcardsOpen !== false,
       isQuizOpen: course.isQuizOpen !== false,
-      isEvaluationOpen: course.isEvaluationOpen !== false
+      isEvaluationOpen: course.isEvaluationOpen !== false,
+      lectureControls: course.lectureControls || {}
     });
+    setEditingLectureNum(1);
   };
 
   const handleSaveCourseLinks = async () => {
@@ -489,7 +501,8 @@ export default function TenantAdminDashboard({
               isAttendanceOpen: editingCourseData.isAttendanceOpen,
               isFlashcardsOpen: editingCourseData.isFlashcardsOpen,
               isQuizOpen: editingCourseData.isQuizOpen,
-              isEvaluationOpen: editingCourseData.isEvaluationOpen
+              isEvaluationOpen: editingCourseData.isEvaluationOpen,
+              lectureControls: editingCourseData.lectureControls
             } 
           : c
       );
@@ -1123,23 +1136,41 @@ export default function TenantAdminDashboard({
                     <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 font-bold">
                       <th className="pb-3 text-right">رقم الكشف</th>
                       <th className="pb-3 text-right">الاسم</th>
-                      <th className="pb-3 text-right">البريد الإلكتروني</th>
-                      <th className="pb-3 text-right">هاتف الواتساب</th>
                       <th className="pb-3 text-right">الدورة المسجل بها</th>
+                      <th className="pb-3 text-right">نسبة الاجتياز 📈</th>
                       <th className="pb-3 text-center">العمليات</th>
                     </tr>
                   </thead>
                   <tbody>
                     {students.map((item) => {
                       const studentCourse = courses.find(c => c.id === item.courseId);
+                      const expected = (studentCourse?.lecturesCount || 1) * 3; // attendance + quiz + task per lecture
+                      const prog = tenantProgress[item.phone] || { attendance: 0, quiz: 0, task: 0 };
+                      const totalActual = prog.attendance + prog.quiz + prog.task;
+                      const percentage = Math.round((totalActual / expected) * 100) || 0;
+
                       return (
                         <tr key={item.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
                           <td className="py-4 font-bold text-blue-600">#{item.rollNumber || 1}</td>
-                          <td className="py-4 font-bold text-slate-800 dark:text-white">{item.name}</td>
-                          <td className="py-4 text-slate-500 font-medium">{item.email}</td>
-                          <td className="py-4 text-slate-500 font-bold text-left" dir="ltr">{item.phone}</td>
+                          <td className="py-4">
+                            <div className="font-bold text-slate-800 dark:text-white">{item.name}</div>
+                            <div className="text-xs text-slate-400 mt-1" dir="ltr">{item.phone}</div>
+                          </td>
                           <td className="py-4 text-slate-600 font-bold dark:text-slate-300">
                             {studentCourse?.title || "دورة غير معروفة"}
+                          </td>
+                          <td className="py-4">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                                  <div className={`h-2 rounded-full ${percentage >= 80 ? 'bg-green-500' : percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(percentage, 100)}%` }}></div>
+                                </div>
+                                <span className="font-bold text-sm min-w-8">{Math.min(percentage, 100)}%</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                <span>حضور: {prog.attendance}</span> | <span>كويز: {prog.quiz}</span> | <span>تاسك: {prog.task}</span>
+                              </div>
+                            </div>
                           </td>
                           <td className="py-4 text-center whitespace-nowrap">
                             <button
@@ -1410,43 +1441,89 @@ export default function TenantAdminDashboard({
                                   dir="ltr"
                                 />
                               </div>
-                              <div className="grid grid-cols-2 gap-3 mt-4 mb-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={editingCourseData.isAttendanceOpen}
-                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isAttendanceOpen: e.target.checked })}
-                                    className="w-4 h-4 text-blue-600 rounded"
-                                  />
-                                  تفعيل الحضور
-                                </label>
-                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={editingCourseData.isFlashcardsOpen}
-                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isFlashcardsOpen: e.target.checked })}
-                                    className="w-4 h-4 text-blue-600 rounded"
-                                  />
-                                  تفعيل الكروت التعليمية
-                                </label>
-                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={editingCourseData.isQuizOpen}
-                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isQuizOpen: e.target.checked })}
-                                    className="w-4 h-4 text-blue-600 rounded"
-                                  />
-                                  تفعيل الكويزات
-                                </label>
-                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={editingCourseData.isEvaluationOpen}
-                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isEvaluationOpen: e.target.checked })}
-                                    className="w-4 h-4 text-blue-600 rounded"
-                                  />
-                                  تفعيل التقييم الذاتي
-                                </label>
+                              <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
+                                <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                                  إعدادات المحاضرات والتاسكات
+                                </h4>
+                                <select
+                                  value={editingLectureNum}
+                                  onChange={(e) => setEditingLectureNum(Number(e.target.value))}
+                                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 font-bold text-sm mb-4"
+                                >
+                                  {Array.from({ length: editingCourseData.lecturesCount || 1 }).map((_, idx) => (
+                                    <option key={idx + 1} value={idx + 1}>المحاضرة رقم {idx + 1}</option>
+                                  ))}
+                                </select>
+
+                                {(() => {
+                                  const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "" };
+                                  const currentControls = editingCourseData.lectureControls[editingLectureNum] || defaultControls;
+                                  const updateControls = (updates: any) => {
+                                    setEditingCourseData(prev => ({
+                                      ...prev,
+                                      lectureControls: {
+                                        ...prev.lectureControls,
+                                        [editingLectureNum]: { ...currentControls, ...updates }
+                                      }
+                                    }));
+                                  };
+
+                                  return (
+                                    <div className="space-y-4">
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                          <input type="checkbox" checked={currentControls.isAttendanceOpen} onChange={e => updateControls({ isAttendanceOpen: e.target.checked })} className="w-4 h-4 text-blue-600 rounded" /> الحضور
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                          <input type="checkbox" checked={currentControls.isFlashcardsOpen} onChange={e => updateControls({ isFlashcardsOpen: e.target.checked })} className="w-4 h-4 text-blue-600 rounded" /> الكروت
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                          <input type="checkbox" checked={currentControls.isQuizOpen} onChange={e => updateControls({ isQuizOpen: e.target.checked })} className="w-4 h-4 text-blue-600 rounded" /> الكويز
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                          <input type="checkbox" checked={currentControls.isEvaluationOpen} onChange={e => updateControls({ isEvaluationOpen: e.target.checked })} className="w-4 h-4 text-blue-600 rounded" /> التقييم
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                                          <input type="checkbox" checked={currentControls.isTasksOpen} onChange={e => updateControls({ isTasksOpen: e.target.checked })} className="w-4 h-4 text-blue-600 rounded" /> التاسكات
+                                        </label>
+                                      </div>
+                                      
+                                      {currentControls.isTasksOpen && (
+                                        <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                                          <div>
+                                            <label className="block text-xs font-bold mb-1">وصف التاسك</label>
+                                            <textarea 
+                                              value={currentControls.taskDescription} 
+                                              onChange={e => updateControls({ taskDescription: e.target.value })} 
+                                              className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm min-h-[60px]"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-bold mb-1">ملف التاسك (PDF أو صورة)</label>
+                                            <div className="flex items-center gap-2">
+                                              {currentControls.taskFileUrl && <span className="text-xs text-blue-500 font-bold bg-blue-50 px-2 py-1 rounded">يوجد ملف مرفق</span>}
+                                              <input 
+                                                type="file" 
+                                                accept="image/*,application/pdf"
+                                                onChange={(e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (event) => {
+                                                      updateControls({ taskFileUrl: event.target?.result as string });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                                className="text-xs"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               <div className="flex gap-2">
                                 <button
@@ -1672,6 +1749,45 @@ export default function TenantAdminDashboard({
                 <div className="text-center py-10">
                   <Video size={48} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
                   <p className="text-slate-500 font-bold">لم يقم أي طالب بتسجيل حضوره في هذه المحاضرة حتى الآن.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Student Tasks section */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl p-6 shadow-sm mt-8">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Award size={20} className="text-blue-500" />
+                تاسكات المتدربين ({studentTasks.length} تاسك)
+              </h3>
+              {studentTasks.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المتدرب</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">الملف المرفوع</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">وقت الرفع</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentTasks.map((task) => (
+                        <tr key={task.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-4 font-bold text-slate-800 dark:text-slate-200" dir="ltr">{task.studentPhone}</td>
+                          <td className="p-4">
+                            <a href={task.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold underline hover:text-blue-700">
+                              عرض الملف
+                            </a>
+                          </td>
+                          <td className="p-4 text-slate-600 dark:text-slate-400 text-xs" dir="ltr">{new Date(task.createdAt).toLocaleString("ar-EG")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-10">
+                  <Award size={48} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+                  <p className="text-slate-500 font-bold">لم يقم أي متدرب برفع التاسك لهذه المحاضرة حتى الآن.</p>
                 </div>
               )}
             </div>

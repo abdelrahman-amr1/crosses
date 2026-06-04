@@ -84,6 +84,26 @@ export interface Course {
   isFlashcardsOpen: boolean;
   isQuizOpen: boolean;
   isEvaluationOpen: boolean;
+  lectureControls?: Record<number, LectureControl>;
+}
+
+export interface LectureControl {
+  isAttendanceOpen: boolean;
+  isFlashcardsOpen: boolean;
+  isQuizOpen: boolean;
+  isEvaluationOpen: boolean;
+  isTasksOpen: boolean;
+  taskDescription: string;
+  taskFileUrl: string;
+}
+
+export interface StudentTask {
+  id: string;
+  courseId: string;
+  lectureNumber: number;
+  studentPhone: string;
+  fileUrl: string;
+  createdAt: string;
 }
 
 // Global base URL detection for absolute fetch calls during SSR
@@ -185,8 +205,21 @@ export const db = {
         admin_email as "adminEmail", 
         admin_password as "adminPassword";
     `, [name, cleanSubdomain, logoUrl || null, finalAdminEmail, finalAdminPassword]);
-    
     return res.rows[0];
+  },
+  
+  deleteInstitution: async (id: string): Promise<void> => {
+    // Delete related records first to avoid foreign key constraint violations
+    await runQuery(`DELETE FROM student_tasks WHERE course_id IN (SELECT id FROM courses WHERE institution_id = $1);`, [id]);
+    await runQuery(`DELETE FROM quiz_scores WHERE institution_id = $1;`, [id]);
+    await runQuery(`DELETE FROM attendances WHERE institution_id = $1;`, [id]);
+    await runQuery(`DELETE FROM flashcards WHERE institution_id = $1;`, [id]);
+    await runQuery(`DELETE FROM courses WHERE institution_id = $1;`, [id]);
+    await runQuery(`DELETE FROM students WHERE institution_id = $1;`, [id]);
+    await runQuery(`DELETE FROM applications WHERE institution_id = $1;`, [id]);
+    
+    // Finally, delete the institution itself
+    await runQuery(`DELETE FROM institutions WHERE id = $1;`, [id]);
   },
 
   // Courses
@@ -204,7 +237,8 @@ export const db = {
         COALESCE(c.is_attendance_open, true) as "isAttendanceOpen",
         COALESCE(c.is_flashcards_open, true) as "isFlashcardsOpen",
         COALESCE(c.is_quiz_open, true) as "isQuizOpen",
-        COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen"
+        COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen",
+        c.lecture_controls as "lectureControls"
       FROM courses c
       JOIN institutions i ON c.institution_id = i.id
       WHERE i.subdomain = $1
@@ -224,8 +258,8 @@ export const db = {
     for (const c of courses) {
       courseIds.push(c.id);
       await runQuery(`
-        INSERT INTO courses (id, institution_id, title, description, price, lectures_count, cover_image, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO courses (id, institution_id, title, description, price, lectures_count, cover_image, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open, lecture_controls)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
@@ -237,10 +271,12 @@ export const db = {
           is_attendance_open = EXCLUDED.is_attendance_open,
           is_flashcards_open = EXCLUDED.is_flashcards_open,
           is_quiz_open = EXCLUDED.is_quiz_open,
-          is_evaluation_open = EXCLUDED.is_evaluation_open;
+          is_evaluation_open = EXCLUDED.is_evaluation_open,
+          lecture_controls = EXCLUDED.lecture_controls;
       `, [
         c.id, instId, c.title, c.description, c.price, c.lecturesCount, c.coverImage || null, c.lectureUrl, c.whatsappGroupUrl,
-        c.isAttendanceOpen !== false, c.isFlashcardsOpen !== false, c.isQuizOpen !== false, c.isEvaluationOpen !== false
+        c.isAttendanceOpen !== false, c.isFlashcardsOpen !== false, c.isQuizOpen !== false, c.isEvaluationOpen !== false,
+        c.lectureControls ? JSON.stringify(c.lectureControls) : '{}'
       ]);
     }
 
@@ -692,5 +728,77 @@ export const db = {
   getStudentTotalScore: async (tenant: string, username: string): Promise<number> => {
     const scores = await db.getQuizScores(tenant, username);
     return Object.values(scores).reduce((a, b) => a + b, 0) * 10;
+  },
+
+  // Student Tasks
+  getStudentTasks: async (courseId: string, lectureNumber?: number): Promise<StudentTask[]> => {
+    let query = `
+      SELECT id, course_id as "courseId", lecture_number as "lectureNumber", student_phone as "studentPhone", file_url as "fileUrl", created_at as "createdAt"
+      FROM student_tasks
+      WHERE course_id = $1
+    `;
+    const params: any[] = [courseId];
+    if (lectureNumber) {
+      query += ` AND lecture_number = $2`;
+      params.push(lectureNumber);
+    }
+    query += ` ORDER BY created_at DESC;`;
+    
+    const res = await runQuery(query, params);
+    return res.rows;
+  },
+
+  saveStudentTask: async (courseId: string, lectureNumber: number, studentPhone: string, fileUrl: string): Promise<void> => {
+    await runQuery(`
+      INSERT INTO student_tasks (course_id, lecture_number, student_phone, file_url)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (course_id, lecture_number, student_phone) 
+      DO UPDATE SET file_url = EXCLUDED.file_url, created_at = timezone('utc'::text, now());
+    `, [courseId, lectureNumber, studentPhone, fileUrl]);
+  },
+
+  // Student Progress Aggregation
+  getTenantProgress: async (tenant: string): Promise<Record<string, { attendance: number, quiz: number, task: number }>> => {
+    const attRes = await runQuery(`
+      SELECT a.student_name, count(DISTINCT a.lecture_number) as c 
+      FROM attendances a
+      JOIN institutions i ON a.institution_id = i.id
+      WHERE i.subdomain = $1
+      GROUP BY a.student_name
+    `, [tenant]);
+
+    const quizRes = await runQuery(`
+      SELECT q.username, count(DISTINCT q.lecture_number) as c 
+      FROM quiz_scores q
+      JOIN institutions i ON q.institution_id = i.id
+      WHERE i.subdomain = $1
+      GROUP BY q.username
+    `, [tenant]);
+
+    const taskRes = await runQuery(`
+      SELECT t.student_phone, count(DISTINCT t.lecture_number) as c 
+      FROM student_tasks t
+      JOIN courses c ON t.course_id = c.id
+      JOIN institutions i ON c.institution_id = i.id
+      WHERE i.subdomain = $1
+      GROUP BY t.student_phone
+    `, [tenant]);
+
+    const progress: Record<string, { attendance: number, quiz: number, task: number }> = {};
+    
+    for (const row of attRes.rows) {
+      if (!progress[row.student_name]) progress[row.student_name] = { attendance: 0, quiz: 0, task: 0 };
+      progress[row.student_name].attendance = parseInt(row.c, 10);
+    }
+    for (const row of quizRes.rows) {
+      if (!progress[row.username]) progress[row.username] = { attendance: 0, quiz: 0, task: 0 };
+      progress[row.username].quiz = parseInt(row.c, 10);
+    }
+    for (const row of taskRes.rows) {
+      if (!progress[row.student_phone]) progress[row.student_phone] = { attendance: 0, quiz: 0, task: 0 };
+      progress[row.student_phone].task = parseInt(row.c, 10);
+    }
+
+    return progress;
   }
 };

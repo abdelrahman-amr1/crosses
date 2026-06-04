@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, Institution } from "@/lib/db";
-import { School, PlusCircle, Globe, ExternalLink, ShieldCheck, Landmark, Sparkles, CheckCircle2, Lock, User, LogOut, Upload, Edit, Save, X } from "lucide-react";
+import { School, PlusCircle, Globe, ExternalLink, ShieldCheck, Landmark, Sparkles, CheckCircle2, Lock, User, LogOut, Upload, Edit, Save, X, Trash2 } from "lucide-react";
 import { compressBase64 } from "@/lib/imageCompressor";
 
 export default function SuperAdminPortal() {
@@ -95,6 +95,18 @@ export default function SuperAdminPortal() {
       setSuccessMsg("تم تحديث بيانات المركز بنجاح!");
     } catch (err: any) {
       setErrorMsg(`⚠️ فشل التحديث: ${err.message || err}`);
+    }
+  };
+
+  const handleDeleteCenter = async (id: string, centerName: string) => {
+    if (!window.confirm(`هل أنت متأكد من حذف مركز "${centerName}" وكل بياناته (طلاب، دورات، الخ) نهائياً؟`)) return;
+    try {
+      await db.deleteInstitution(id);
+      setInstitutions(institutions.filter(inst => inst.id !== id));
+      setSuccessMsg(`تم حذف مركز ${centerName} بنجاح!`);
+      setErrorMsg("");
+    } catch (err: any) {
+      setErrorMsg(`⚠️ فشل الحذف: ${err.message || err}`);
     }
   };
 
@@ -332,6 +344,13 @@ export default function SuperAdminPortal() {
                             title="تعديل المنصة"
                           >
                             <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCenter(inst.id, inst.name)}
+                            className="text-slate-400 hover:text-red-600 transition-colors mr-1"
+                            title="حذف المنصة نهائياً وكل بياناتها"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       )}
