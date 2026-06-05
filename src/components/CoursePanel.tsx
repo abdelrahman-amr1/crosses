@@ -97,8 +97,21 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
   const currentControls = course.lectureControls?.[selectedLecture] || defaultControls;
 
   useEffect(() => {
-    // If current active tab is not available, switch to attendance
-    if (!currentControls.isAttendanceOpen && activeTab === "attendance") setActiveTab("flashcards");
+    // If current active tab is locked, try to switch to the first available open tab
+    const isLocked = 
+      (activeTab === "attendance" && !currentControls.isAttendanceOpen) ||
+      (activeTab === "flashcards" && !currentControls.isFlashcardsOpen) ||
+      (activeTab === "quiz" && !currentControls.isQuizOpen) ||
+      (activeTab === "evaluation" && !currentControls.isEvaluationOpen) ||
+      (activeTab === "tasks" && !currentControls.isTasksOpen);
+
+    if (isLocked) {
+      if (currentControls.isAttendanceOpen) setActiveTab("attendance");
+      else if (currentControls.isFlashcardsOpen) setActiveTab("flashcards");
+      else if (currentControls.isQuizOpen) setActiveTab("quiz");
+      else if (currentControls.isEvaluationOpen) setActiveTab("evaluation");
+      else if (currentControls.isTasksOpen) setActiveTab("tasks");
+    }
   }, [currentControls, activeTab]);
 
   // Handle Attendance via DB
@@ -257,8 +270,23 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                 transition={{ duration: 0.2 }}
                 className="w-full flex-grow flex flex-col"
               >
-                {/* 1. ATTENDANCE & ZOOM */}
-                {activeTab === "attendance" && (
+                {/* Check if Locked */}
+                {((activeTab === "attendance" && !currentControls.isAttendanceOpen) ||
+                  (activeTab === "flashcards" && !currentControls.isFlashcardsOpen) ||
+                  (activeTab === "quiz" && !currentControls.isQuizOpen) ||
+                  (activeTab === "evaluation" && !currentControls.isEvaluationOpen) ||
+                  (activeTab === "tasks" && !currentControls.isTasksOpen)) ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center h-full">
+                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-800">
+                      <Lock size={40} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">القسم مغلق حالياً</h3>
+                    <p className="text-slate-500 mt-2 font-medium">لم يقم المعلم بتفعيل هذا القسم للمحاضرة الحالية حتى الآن.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* 1. ATTENDANCE & ZOOM */}
+                    {activeTab === "attendance" && (
                   <div className="flex flex-col items-center justify-center text-center py-10 flex-grow">
                     <div className="w-20 h-20 bg-blue-50 dark:bg-slate-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6">
                       <Video size={40} />
@@ -576,12 +604,12 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                      </div>
                   </div>
                 )}
+                  </>
+                )}
               </motion.div>
             </AnimatePresence>
           </div>
-
         </div>
-
       </div>
     </div>
   );
