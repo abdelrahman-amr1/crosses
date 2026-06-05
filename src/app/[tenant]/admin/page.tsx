@@ -33,7 +33,9 @@ import {
   Video,
   Award,
   Edit2,
-  XCircle
+  XCircle,
+  User,
+  Activity
 } from "lucide-react";
 import { db, Course, Application, Flashcard, QuizQuestion, AttendanceRecord, Institution, LectureControl, Student, StudentTask } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
@@ -89,9 +91,10 @@ export default function TenantAdminDashboard({
   // Form states
   const [newStudent, setNewStudent] = useState({ name: "", email: "", courseId: "" });
   
-  // Student edit form
+  // Student edit & view forms
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editingStudentData, setEditingStudentData] = useState({ name: "", email: "", phone: "", rollNumber: 1 });
+  const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
   
   // Course edit & addition forms
   const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
@@ -1149,117 +1152,28 @@ export default function TenantAdminDashboard({
             <div className="lg:col-span-2">
               <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">قائمة المتدربين المقبولين بالمركز</h3>
               
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-right border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 font-bold">
-                      <th className="pb-3 text-right">رقم الكشف</th>
-                      <th className="pb-3 text-right">الاسم</th>
-                      <th className="pb-3 text-right">الدورة المسجل بها</th>
-                      <th className="pb-3 text-right">نسبة الاجتياز 📈</th>
-                      <th className="pb-3 text-center">العمليات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students.map((item) => {
-                      const studentCourse = courses.find(c => c.id === item.courseId);
-                      const expected = (studentCourse?.lecturesCount || 1) * 3; // attendance + quiz + task per lecture
-                      const progByName = tenantProgress[item.name] || { attendance: 0, quiz: 0, task: 0 };
-                      const progByPhone = tenantProgress[item.phone] || { attendance: 0, quiz: 0, task: 0 };
-                      const prog = {
-                        attendance: progByName.attendance + progByPhone.attendance,
-                        quiz: progByName.quiz + progByPhone.quiz,
-                        task: progByName.task + progByPhone.task
-                      };
-                      const totalActual = prog.attendance + prog.quiz + prog.task;
-                      const percentage = Math.round((totalActual / expected) * 100) || 0;
-
-                      return (
-                        <tr key={item.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                          <td className="py-4 font-bold text-blue-600">#{item.rollNumber || 1}</td>
-                          <td className="py-4">
-                            <div className="font-bold text-slate-800 dark:text-white">{item.name}</div>
-                            <div className="text-xs text-slate-400 mt-1" dir="ltr">{item.phone}</div>
-                          </td>
-                          <td className="py-4 text-slate-600 font-bold dark:text-slate-300">
-                            {studentCourse?.title || "دورة غير معروفة"}
-                          </td>
-                          <td className="py-4">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                                  <div className={`h-2 rounded-full ${percentage >= 80 ? 'bg-green-500' : percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(percentage, 100)}%` }}></div>
-                                </div>
-                                <span className="font-bold text-sm min-w-8">{Math.min(percentage, 100)}%</span>
-                              </div>
-                              <div className="text-[10px] text-slate-400">
-                                <span>حضور: {prog.attendance}</span> | <span>كويز: {prog.quiz}</span> | <span>تاسك: {prog.task}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 text-center whitespace-nowrap">
-                            <button
-                              onClick={() => {
-                                const courseTitle = studentCourse?.title || "دورة عامة";
-                                window.open(`/${params.tenant}/certificate?name=${encodeURIComponent(item.name)}&course=${encodeURIComponent(courseTitle)}`, '_blank');
-                              }}
-                              title="عرض الشهادة"
-                              className="text-emerald-600 hover:text-emerald-800 p-2 transition-colors inline-block mr-2"
-                            >
-                              <Award size={16} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingStudentId(item.id);
-                                setEditingStudentData({ name: item.name, email: item.email, phone: item.phone || "", rollNumber: item.rollNumber || 1 });
-                              }}
-                              title="تعديل بيانات الطالب"
-                              className="text-blue-600 hover:text-blue-800 p-2 transition-colors inline-block mr-2"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteStudent(item.id)}
-                              className="text-red-500 hover:text-red-700 p-2 transition-colors inline-block"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {students.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-slate-400">
-                          لم يتم قبول أو إضافة أي متدرب بعد.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="grid grid-cols-1 gap-4 md:hidden">
+              {/* Unified Students Card Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {students.map((item) => {
                   const studentCourse = courses.find(c => c.id === item.courseId);
+                  
                   return (
-                    <div key={item.id} className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                    <div key={item.id} className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+                      <div className="flex justify-between items-start mb-4">
+                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-100">
                           رقم الكشف: #{item.rollNumber || 1}
                         </span>
-                        <div className="flex gap-1">
+                        <div className="flex gap-2">
                           <button
                             onClick={() => {
                               const courseTitle = studentCourse?.title || "دورة عامة";
                               window.open(`/${params.tenant}/certificate?name=${encodeURIComponent(item.name)}&course=${encodeURIComponent(courseTitle)}`, '_blank');
                             }}
                             title="عرض الشهادة"
-                            className="text-emerald-600 hover:text-emerald-800 p-1.5 transition-colors"
+                            className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 p-1.5 rounded-lg transition-all"
                           >
-                            <Award size={16} />
+                            <Award size={18} />
                           </button>
                           <button
                             onClick={() => {
@@ -1267,42 +1181,155 @@ export default function TenantAdminDashboard({
                               setEditingStudentData({ name: item.name, email: item.email, phone: item.phone || "", rollNumber: item.rollNumber || 1 });
                             }}
                             title="تعديل بيانات الطالب"
-                            className="text-blue-600 hover:text-blue-800 p-1.5 transition-colors"
+                            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-all"
                           >
-                            <Edit2 size={16} />
+                            <Edit2 size={18} />
                           </button>
                           <button
                             onClick={() => handleDeleteStudent(item.id)}
-                            className="text-red-500 hover:text-red-700 p-1.5 transition-colors"
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 p-1.5 rounded-lg transition-all"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={18} />
                           </button>
                         </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-slate-850 dark:text-white text-sm">{item.name}</h4>
-                        <p className="text-xs text-slate-500 font-bold mt-0.5">{studentCourse?.title || "دورة غير معروفة"}</p>
+
+                      <div className="flex items-center gap-4 mb-5">
+                        <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-white dark:border-slate-700 shadow-sm shrink-0">
+                          {item.avatarUrl ? (
+                            <img src={item.avatarUrl} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <User size={24} className="text-slate-400" />
+                          )}
+                        </div>
+                        <div className="overflow-hidden">
+                          <h4 className="font-extrabold text-slate-800 dark:text-white text-base leading-tight mb-1 truncate">{item.name}</h4>
+                          <p className="text-xs text-slate-500 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded inline-block truncate max-w-full">{studentCourse?.title || "دورة غير معروفة"}</p>
+                        </div>
                       </div>
-                      <div className="space-y-1.5 text-xs text-slate-650 dark:text-slate-400 font-medium pt-2 border-t border-slate-200/50 dark:border-slate-800">
-                        <p className="flex justify-between">
-                          <span>البريد الإلكتروني:</span>
-                          <span className="font-bold text-slate-800 dark:text-white select-all">{item.email}</span>
-                        </p>
-                        <p className="flex justify-between">
-                          <span>الهاتف:</span>
-                          <span className="font-bold text-slate-850 dark:text-white select-all" dir="ltr">{item.phone}</span>
-                        </p>
-                      </div>
+
+                      <button
+                        onClick={() => setViewingStudentId(item.id)}
+                        className="w-full bg-slate-50 hover:bg-blue-50 text-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-400 font-bold py-3 rounded-xl transition-colors border border-slate-200 dark:border-slate-700 flex justify-center items-center gap-2 group-hover:border-blue-200 dark:group-hover:border-blue-800"
+                      >
+                        <Activity size={18} /> عرض تفاصيل وإنجاز الطالب
+                      </button>
                     </div>
                   );
                 })}
                 {students.length === 0 && (
-                  <div className="text-center py-12 text-slate-400 font-bold bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200">
-                    لم يتم قبول أو إضافة أي متدرب بعد.
+                  <div className="col-span-full py-16 text-center bg-slate-50 dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-4">
+                    <Users size={48} className="text-slate-300" />
+                    <p className="text-slate-500 font-bold text-lg">لم يتم قبول أو إضافة أي متدرب بعد.</p>
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Student Dashboard Modal */}
+            {viewingStudentId && (() => {
+              const student = students.find(s => s.id === viewingStudentId);
+              if (!student) return null;
+              const studentCourse = courses.find(c => c.id === student.courseId);
+              const expected = (studentCourse?.lecturesCount || 1) * 3;
+              const progByName = tenantProgress[student.name] || { attendance: 0, quiz: 0, task: 0 };
+              const progByPhone = tenantProgress[student.phone] || { attendance: 0, quiz: 0, task: 0 };
+              const prog = {
+                attendance: progByName.attendance + progByPhone.attendance,
+                quiz: progByName.quiz + progByPhone.quiz,
+                task: progByName.task + progByPhone.task
+              };
+              const totalActual = prog.attendance + prog.quiz + prog.task;
+              const percentage = Math.round((totalActual / expected) * 100) || 0;
+
+              return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                    {/* Header */}
+                    <div className="bg-gradient-to-l from-blue-600 to-indigo-800 dark:from-blue-800 dark:to-indigo-950 text-white p-6 sm:p-8 relative shrink-0">
+                      <button onClick={() => setViewingStudentId(null)} className="absolute top-6 left-6 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full backdrop-blur-sm">
+                        <XCircle size={24} />
+                      </button>
+                      
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-4 border-white/30 shadow-xl shrink-0">
+                          {student.avatarUrl ? (
+                            <img src={student.avatarUrl} alt={student.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <User size={48} className="text-white/80" />
+                          )}
+                        </div>
+                        <div className="text-center sm:text-right pt-2 flex-1">
+                          <h2 className="text-2xl sm:text-3xl font-extrabold mb-2 text-white">{student.name}</h2>
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-blue-100 font-medium text-sm">
+                            <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm"><Phone size={14} /> {student.phone}</span>
+                            <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm"><Building size={14} /> {studentCourse?.title || "دورة عامة"}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 sm:p-8 overflow-y-auto bg-slate-50 dark:bg-slate-900">
+                      <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                        <Activity className="text-blue-500" /> إنجازات وتفاعل الطالب
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                        <div className="bg-white dark:bg-slate-800 border border-blue-100 dark:border-blue-900/50 p-5 rounded-3xl flex flex-col items-center justify-center text-center transition-transform hover:-translate-y-1 hover:shadow-lg shadow-sm">
+                          <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-3">
+                            <Video size={26} />
+                          </div>
+                          <span className="text-3xl font-black text-slate-800 dark:text-white">{prog.attendance}</span>
+                          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">محاضرات</span>
+                        </div>
+                        
+                        <div className="bg-white dark:bg-slate-800 border border-emerald-100 dark:border-emerald-900/50 p-5 rounded-3xl flex flex-col items-center justify-center text-center transition-transform hover:-translate-y-1 hover:shadow-lg shadow-sm">
+                          <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mb-3">
+                            <CheckCircle2 size={26} />
+                          </div>
+                          <span className="text-3xl font-black text-slate-800 dark:text-white">{prog.quiz}</span>
+                          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">كويزات</span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 border border-amber-100 dark:border-amber-900/50 p-5 rounded-3xl flex flex-col items-center justify-center text-center transition-transform hover:-translate-y-1 hover:shadow-lg shadow-sm">
+                          <div className="w-14 h-14 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mb-3">
+                            <Upload size={26} />
+                          </div>
+                          <span className="text-3xl font-black text-slate-800 dark:text-white">{prog.task}</span>
+                          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">تاسكات</span>
+                        </div>
+                      </div>
+
+                      {/* Big Progress Bar */}
+                      <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <div className="flex justify-between items-end mb-5 relative z-10">
+                          <div>
+                            <h4 className="font-bold text-slate-800 dark:text-white text-lg">معدل التقدم الإجمالي (نهاية الدورة)</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">يُحسب بناءً على إجمالي عدد محاضرات الدورة</p>
+                          </div>
+                          <div className={`text-4xl sm:text-5xl font-black ${percentage >= 80 ? 'text-emerald-500' : percentage >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                            {Math.min(percentage, 100)}%
+                          </div>
+                        </div>
+                        
+                        <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-5 overflow-hidden shadow-inner relative z-10">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(percentage, 100)}%` }}
+                            transition={{ duration: 1.5, ease: "easeOut" }}
+                            className={`h-full rounded-full relative overflow-hidden ${percentage >= 80 ? 'bg-gradient-to-l from-emerald-400 to-emerald-600' : percentage >= 50 ? 'bg-gradient-to-l from-amber-400 to-amber-600' : 'bg-gradient-to-l from-red-400 to-red-600'}`}
+                          >
+                            <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[slide_1s_linear_infinite]"></div>
+                          </motion.div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Edit Student Modal */}
             {editingStudentId && (
