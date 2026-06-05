@@ -44,6 +44,8 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [quizCountdown, setQuizCountdown] = useState<number | null>(null);
 
   // Evaluation state
   const [understandingRating, setUnderstandingRating] = useState(5);
@@ -65,10 +67,20 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
         setFlashcards(cards);
         setQuizQuestions(quiz);
 
-        // Reset quiz state for the new lecture
-        setQuizAnswers({});
-        setQuizSubmitted(false);
-        setQuizScore(0);
+        // Fetch previous quiz scores
+        const pastScores = await db.getQuizScores(tenant, studentName);
+        const pastScoreKey = `${course.id}_${selectedLecture}`;
+
+        if (pastScores[pastScoreKey] !== undefined) {
+          setQuizScore(pastScores[pastScoreKey]);
+          setQuizSubmitted(true);
+          setQuizStarted(true);
+        } else {
+          setQuizSubmitted(false);
+          setQuizStarted(false);
+          setQuizScore(0);
+        }
+        setQuizCountdown(null);
 
         // Reset eval form
         setUnderstandingRating(5);
@@ -358,7 +370,29 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                       </div>
 
                       {quizQuestions.length > 0 ? (
-                        !quizSubmitted ? (
+                        !quizStarted ? (
+                          <div className="bg-slate-50 dark:bg-slate-900 border border-blue-200 dark:border-blue-900 rounded-3xl p-8 text-center mt-6">
+                            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <HelpCircle size={40} />
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">هل أنت جاهز للاختبار؟</h3>
+                            <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-lg mx-auto leading-relaxed font-medium">
+                              الاختبار متاح لمرة واحدة فقط وسيتم تثبيت النتيجة بمجرد الانتهاء ولن تتمكن من إعادته. عند الضغط على "بدء الاختبار"، سيبدأ العد التنازلي.
+                            </p>
+                            {quizCountdown === null ? (
+                              <button
+                                onClick={() => setQuizCountdown(3)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-blue-500/30 transition-all flex items-center justify-center gap-3 mx-auto"
+                              >
+                                بدء الاختبار الآن 🚀
+                              </button>
+                            ) : (
+                              <div className="text-5xl font-extrabold text-blue-600 animate-pulse">
+                                {quizCountdown}
+                              </div>
+                            )}
+                          </div>
+                        ) : !quizSubmitted ? (
                           <div className="space-y-6">
                             {quizQuestions.map((question, qIdx) => (
                               <div key={question?.id || qIdx} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -404,37 +438,14 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                               <Award size={48} />
                             </div>
                             <h3 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-2">أحسنت صنعاً!</h3>
-                            <p className="text-xl text-slate-500 dark:text-slate-400 mb-6">
+                            <p className="text-xl text-slate-500 dark:text-slate-400 mb-2">
                               لقد أجبت بشكل صحيح على <span className="font-bold text-blue-600 dark:text-blue-400">{quizScore}</span> من أصل <span className="font-bold">{quizQuestions.length}</span> أسئلة.
                             </p>
-                            
-                            <div className="max-w-md mx-auto bg-slate-50 dark:bg-slate-900 rounded-2xl p-5 mb-8 border border-slate-100 dark:border-slate-800 text-right">
-                              <h4 className="font-bold mb-4">تفاصيل الإجابات:</h4>
-                              <div className="space-y-3">
-                                {quizQuestions.map((q, idx) => {
-                                  const isCorrect = quizAnswers[q.id] === q.correctOption;
-                                  return (
-                                    <div key={q?.id || idx} className="flex justify-between items-center text-sm font-bold">
-                                      <span>سؤال {idx + 1}: {q?.question?.substring(0, 30) || "سؤال بدون نص"}...</span>
-                                      <span className={isCorrect ? "text-green-600" : "text-red-500"}>
-                                        {isCorrect ? "✓ إجابة صحيحة" : `✗ خطأ (الصح: ${q?.options?.[q?.correctOption] || ""})`}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => {
-                                setQuizAnswers({});
-                                setQuizSubmitted(false);
-                                setQuizScore(0);
-                              }}
-                              className="px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:text-white rounded-xl font-bold transition-all inline-flex items-center gap-2"
-                            >
-                              <RefreshCw size={18} /> إعادة الامتحان
-                            </button>
+                            {Object.keys(quizAnswers).length === 0 && (
+                              <p className="text-md text-emerald-600 dark:text-emerald-400 mb-6 font-bold">
+                                تم إجراء هذا الاختبار مسبقاً وتم تثبيت نتيجتك بنجاح.
+                              </p>
+                            )}
                           </div>
                         )
                       ) : (

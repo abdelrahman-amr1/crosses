@@ -31,7 +31,9 @@ import {
   Check,
   Building,
   Video,
-  Award
+  Award,
+  Edit2,
+  XCircle
 } from "lucide-react";
 import { db, Course, Application, Flashcard, QuizQuestion, AttendanceRecord, Institution, LectureControl, Student, StudentTask } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
@@ -86,6 +88,10 @@ export default function TenantAdminDashboard({
 
   // Form states
   const [newStudent, setNewStudent] = useState({ name: "", email: "", courseId: "" });
+  
+  // Student edit form
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [editingStudentData, setEditingStudentData] = useState({ name: "", email: "", phone: "", rollNumber: 1 });
   
   // Course edit & addition forms
   const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
@@ -405,8 +411,9 @@ export default function TenantAdminDashboard({
       const matchedCourse = courses.find(c => c.id === newStudent.courseId);
       if (!matchedCourse) return;
 
-      const courseStudentsCount = students.filter(s => s.courseId === newStudent.courseId).length;
-      const nextRollNumber = courseStudentsCount + 1;
+      const courseStudents = students.filter(s => s.courseId === newStudent.courseId);
+      const maxRoll = courseStudents.length > 0 ? Math.max(...courseStudents.map(s => s.rollNumber || 1)) : 0;
+      const nextRollNumber = maxRoll + 1;
 
       const studentObj: Student = {
         id: generateUUID(),
@@ -427,6 +434,19 @@ export default function TenantAdminDashboard({
       
       showAlert(`✅ تم إنشاء حساب الطالب بنجاح! رقم كشفه: #${nextRollNumber}`);
     }
+  };
+  const handleSaveStudentEdit = async () => {
+    if (!editingStudentId) return;
+    const s = students.find(x => x.id === editingStudentId);
+    if (!s) return;
+    
+    const updatedStudent = { ...s, ...editingStudentData };
+    const updatedList = students.map(st => st.id === editingStudentId ? updatedStudent : st);
+    
+    setStudents(updatedList);
+    await db.saveStudents(params.tenant, updatedList);
+    setEditingStudentId(null);
+    showAlert("✅ تم تعديل بيانات الطالب بنجاح!");
   };
 
   const handleDeleteStudent = async (id: string) => {
@@ -1145,7 +1165,13 @@ export default function TenantAdminDashboard({
                     {students.map((item) => {
                       const studentCourse = courses.find(c => c.id === item.courseId);
                       const expected = (studentCourse?.lecturesCount || 1) * 3; // attendance + quiz + task per lecture
-                      const prog = tenantProgress[item.phone] || { attendance: 0, quiz: 0, task: 0 };
+                      const progByName = tenantProgress[item.name] || { attendance: 0, quiz: 0, task: 0 };
+                      const progByPhone = tenantProgress[item.phone] || { attendance: 0, quiz: 0, task: 0 };
+                      const prog = {
+                        attendance: progByName.attendance + progByPhone.attendance,
+                        quiz: progByName.quiz + progByPhone.quiz,
+                        task: progByName.task + progByPhone.task
+                      };
                       const totalActual = prog.attendance + prog.quiz + prog.task;
                       const percentage = Math.round((totalActual / expected) * 100) || 0;
 
@@ -1182,6 +1208,16 @@ export default function TenantAdminDashboard({
                               className="text-emerald-600 hover:text-emerald-800 p-2 transition-colors inline-block mr-2"
                             >
                               <Award size={16} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingStudentId(item.id);
+                                setEditingStudentData({ name: item.name, email: item.email, phone: item.phone || "", rollNumber: item.rollNumber || 1 });
+                              }}
+                              title="تعديل بيانات الطالب"
+                              className="text-blue-600 hover:text-blue-800 p-2 transition-colors inline-block mr-2"
+                            >
+                              <Edit2 size={16} />
                             </button>
                             <button
                               onClick={() => handleDeleteStudent(item.id)}
@@ -1226,6 +1262,16 @@ export default function TenantAdminDashboard({
                             <Award size={16} />
                           </button>
                           <button
+                            onClick={() => {
+                              setEditingStudentId(item.id);
+                              setEditingStudentData({ name: item.name, email: item.email, phone: item.phone || "", rollNumber: item.rollNumber || 1 });
+                            }}
+                            title="تعديل بيانات الطالب"
+                            className="text-blue-600 hover:text-blue-800 p-1.5 transition-colors"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
                             onClick={() => handleDeleteStudent(item.id)}
                             className="text-red-500 hover:text-red-700 p-1.5 transition-colors"
                           >
@@ -1257,6 +1303,77 @@ export default function TenantAdminDashboard({
                 )}
               </div>
             </div>
+
+            {/* Edit Student Modal */}
+            {editingStudentId && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">تعديل بيانات الطالب</h3>
+                    <button onClick={() => setEditingStudentId(null)} className="text-slate-400 hover:text-red-500 transition-colors">
+                      <XCircle size={24} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">اسم المتدرب</label>
+                      <input
+                        type="text"
+                        value={editingStudentData.name}
+                        onChange={(e) => setEditingStudentData({ ...editingStudentData, name: e.target.value })}
+                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">البريد الإلكتروني</label>
+                      <input
+                        type="email"
+                        value={editingStudentData.email}
+                        onChange={(e) => setEditingStudentData({ ...editingStudentData, email: e.target.value })}
+                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">الهاتف</label>
+                      <input
+                        type="text"
+                        value={editingStudentData.phone}
+                        onChange={(e) => setEditingStudentData({ ...editingStudentData, phone: e.target.value })}
+                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">رقم الكشف</label>
+                      <input
+                        type="number"
+                        value={editingStudentData.rollNumber}
+                        onChange={(e) => setEditingStudentData({ ...editingStudentData, rollNumber: Number(e.target.value) })}
+                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                      <button
+                        onClick={handleSaveStudentEdit}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20"
+                      >
+                        حفظ التعديلات
+                      </button>
+                      <button
+                        onClick={() => setEditingStudentId(null)}
+                        className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 font-bold py-3 rounded-xl transition-all"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
 
             {/* Quick Add Student manually */}
             <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 h-fit">
