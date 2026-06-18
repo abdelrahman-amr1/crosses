@@ -19,38 +19,27 @@ export default function Leaderboard({ tenant, currentStudentName }: { tenant: st
   useEffect(() => {
     async function fetchLeaderboard() {
       try {
-        const allStudents = await db.getStudents(tenant);
-        const courses = await db.getCourses(tenant);
+        // Fetch students, courses, and all total scores concurrently in a single batch (no waterfall!)
+        const [allStudents, courses, scoresMap] = await Promise.all([
+          db.getStudents(tenant),
+          db.getCourses(tenant),
+          db.getTenantLeaderboard(tenant)
+        ]);
 
-        // Mock scores for other students to make the leaderboard look active and premium
-        const mockScores: Record<string, number> = {
-          "std-1": 95, // أحمد محمود
-          "std-default-1": 90,
-          "std-default-2": 85,
-          "std-default-3": 75,
-        };
-
-        // Construct leaderboard entries
-        let entries: LeaderboardEntry[] = [];
-        for (let idx = 0; idx < allStudents.length; idx++) {
-          const std = allStudents[idx];
+        // Construct leaderboard entries using real scores only
+        let entries: LeaderboardEntry[] = allStudents.map((std, idx) => {
           const course = courses.find((c) => c.id === std.courseId);
-          // Retrieve real score from database
-          const realScore = await db.getStudentTotalScore(tenant, std.name);
-          // Current student gets 100% real score, others get real score if any, fallback to mock score
-          const score = (std.name.trim().toLowerCase() === currentStudentName.trim().toLowerCase())
-            ? realScore
-            : (realScore > 0 ? realScore : (mockScores[std.id] || 45 + (idx * 9) % 35));
+          const score = scoresMap[std.name] || 0; // 100% real score from DB
           
-          entries.push({
+          return {
             rank: 0,
             name: std.name,
             avatarUrl: std.avatarUrl,
             rollNumber: std.rollNumber || (idx + 1),
             score,
             courseTitle: course?.title || "دورة برمجة الويب"
-          });
-        }
+          };
+        });
 
         // Sort by score descending
         entries.sort((a, b) => b.score - a.score);

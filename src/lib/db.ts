@@ -731,6 +731,25 @@ export const db = {
     return Object.values(scores).reduce((a, b) => a + b, 0) * 10;
   },
 
+  getTenantLeaderboard: async (tenant: string): Promise<Record<string, number>> => {
+    const instRes = await runQuery(`SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1;`, [tenant]);
+    if (instRes.rows.length === 0) return {};
+    const instId = instRes.rows[0].id;
+    
+    const res = await runQuery(`
+      SELECT username, SUM(score) as "totalScore"
+      FROM quiz_scores
+      WHERE institution_id = $1
+      GROUP BY username;
+    `, [instId]);
+    
+    const scores: Record<string, number> = {};
+    for (const r of res.rows) {
+      scores[r.username] = parseInt(r.totalScore, 10) * 10;
+    }
+    return scores;
+  },
+
   // Student Tasks
   getStudentTasks: async (courseId: string, lectureNumber?: number): Promise<StudentTask[]> => {
     let query = `
