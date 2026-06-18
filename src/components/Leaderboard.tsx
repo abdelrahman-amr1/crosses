@@ -99,45 +99,45 @@ export default function Leaderboard({ tenant, currentStudentName }: { tenant: st
           return (
             <div
               key={entry.rank}
-              className={`p-4 rounded-2xl flex items-center justify-between border transition-all ${
+              className={`p-3.5 rounded-2xl flex items-center justify-between border transition-all duration-300 hover:scale-[1.01] ${
                 isMe
-                  ? "bg-blue-50/70 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40 shadow-sm"
-                  : "bg-slate-50 border-slate-100/50 hover:bg-slate-100/40 dark:bg-slate-900 dark:border-slate-800"
+                  ? "bg-blue-50/80 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40 shadow-sm"
+                  : "bg-slate-50 border-slate-100/50 hover:bg-slate-100/30 dark:bg-slate-900 dark:border-slate-800"
               }`}
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 min-w-0">
                 {/* Rank number or Trophy */}
-                <div className="w-8 flex justify-center">
+                <div className="w-6 flex-shrink-0 flex justify-center">
                   {getRankBadge(entry.rank)}
                 </div>
 
                 {/* Avatar */}
-                <div className="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
                   {entry.avatarUrl ? (
                     <img src={entry.avatarUrl} alt={entry.name} className="w-full h-full object-cover" />
                   ) : (
-                    <User size={22} className="text-slate-400" />
+                    <User size={18} className="text-slate-400" />
                   )}
                 </div>
 
                 {/* Student Info */}
-                <div>
-                  <h4 className="font-extrabold text-slate-800 dark:text-white text-sm flex items-center gap-1.5">
-                    {entry.name}
-                    {isMe && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full">أنت</span>}
+                <div className="min-w-0">
+                  <h4 className="font-extrabold text-slate-800 dark:text-white text-xs sm:text-sm flex items-center gap-1.5 truncate">
+                    <span className="truncate">{entry.name}</span>
+                    {isMe && <span className="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0">أنت</span>}
                   </h4>
-                  <div className="flex gap-4 text-xs text-slate-400 mt-1">
-                    <span>رقم الكشف: #{entry.rollNumber}</span>
-                    <span>•</span>
-                    <span>{entry.courseTitle}</span>
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-450 dark:text-slate-400 mt-1 font-semibold">
+                    <span className="flex-shrink-0">كشف: #{entry.rollNumber}</span>
+                    <span className="text-slate-350 dark:text-slate-700">•</span>
+                    <span className="truncate max-w-[110px]" title={entry.courseTitle}>{entry.courseTitle}</span>
                   </div>
                 </div>
               </div>
 
               {/* Score */}
-              <div className="text-left">
-                <span className="text-xl font-extrabold text-slate-800 dark:text-white">{entry.score}</span>
-                <span className="text-xs text-slate-400 font-bold mr-1">نقطة</span>
+              <div className="text-left flex-shrink-0 pl-1">
+                <span className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-white">{entry.score}</span>
+                <span className="text-[10px] text-slate-450 dark:text-slate-400 font-bold mr-1">نقطة</span>
               </div>
 
             </div>
