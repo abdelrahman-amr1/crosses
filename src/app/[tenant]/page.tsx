@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db, Course, Student, Institution } from "@/lib/db";
+import { db, Course, Student, Institution, Application } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
 import CoursePanel from "@/components/CoursePanel";
 import Leaderboard from "@/components/Leaderboard";
-import { LogOut, BookOpen, User, Camera, ShieldCheck, ClipboardList, Send, Phone } from "lucide-react";
+import { LogOut, BookOpen, User, Camera, ShieldCheck, ClipboardList, Send, Phone, Sparkles } from "lucide-react";
 
 export default function TenantStudentPortal({
   params,
@@ -17,13 +17,16 @@ export default function TenantStudentPortal({
   const [phoneInput, setPhoneInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [student, setStudent] = useState<Student | null>(null);
-  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [studentRecords, setStudentRecords] = useState<Student[]>([]);
+  const [myApplications, setMyApplications] = useState<Application[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [loginError, setLoginError] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string>("");
   const [institution, setInstitution] = useState<Institution | null>(null);
+  const [submittingCourseId, setSubmittingCourseId] = useState<string | null>(null);
 
-  // Load configuration on mount
+  // Load configuration and courses on mount
   useEffect(() => {
     // Fetch current institution info
     db.getInstitutions().then(insts => {
@@ -32,6 +35,9 @@ export default function TenantStudentPortal({
         setInstitution(current);
       }
     }).catch(console.error);
+
+    // Fetch all courses for this tenant on mount
+    db.getCourses(params.tenant).then(setCourses).catch(console.error);
 
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
@@ -45,16 +51,28 @@ export default function TenantStudentPortal({
     }
   }, [params.tenant]);
 
-  // Load courses when logged in
+  // Load student records and applications when logged in
   useEffect(() => {
     if (isLoggedIn && student) {
-      // Fetch latest courses from DB (synced with admin edits)
-      db.getCourses(params.tenant).then(courses => {
-        const studentCourses = courses.filter(c => c.id === student.courseId);
-        setAvailableCourses(studentCourses.length > 0 ? studentCourses : courses);
+      Promise.all([
+        db.getStudentsByPhone(params.tenant, student.phone),
+        db.getApplicationsByPhone(params.tenant, student.phone),
+        db.getCourses(params.tenant)
+      ]).then(([records, apps, syncedCourses]) => {
+        setStudentRecords(records);
+        setMyApplications(apps);
+        setCourses(syncedCourses);
+        
+        // Find matching record for currently active course if any, or default to the first one
+        const activeRecord = records.find(r => r.courseId === student.courseId) || records[0];
+        if (activeRecord) {
+          setStudent(activeRecord);
+          setAvatarPreview(activeRecord.avatarUrl || "");
+          localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(activeRecord));
+        }
       }).catch(console.error);
     }
-  }, [isLoggedIn, student, params.tenant]);
+  }, [isLoggedIn, student?.phone, params.tenant]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,17 +84,14 @@ export default function TenantStudentPortal({
     }
 
     try {
-      // Find student in Supabase
-      const allStudents = await db.getStudents(params.tenant);
-      const found = allStudents.find(
-        (s) => s.phone === phoneInput.trim()
-      );
+      // Find student by phone (1 quick row query)
+      const record = await db.getStudentByPhone(params.tenant, phoneInput.trim());
 
-      if (found) {
+      if (record) {
         setIsLoggedIn(true);
-        setStudent(found);
-        setAvatarPreview(found.avatarUrl || "");
-        localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(found));
+        setStudent(record);
+        setAvatarPreview(record.avatarUrl || "");
+        localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(record));
       } else {
         setLoginError("⚠️ رقم الموبايل غير مسجل أو لم تتم الموافقة على طلبك بعد.");
       }
@@ -89,7 +104,8 @@ export default function TenantStudentPortal({
     localStorage.removeItem(`loggedin_student_${params.tenant}`);
     setIsLoggedIn(false);
     setStudent(null);
-    setSelectedCourse(null);
+    setStudentRecords([]);
+    setMyApplications([]);
     setSelectedCourse(null);
     setPhoneInput("");
   };
@@ -105,22 +121,45 @@ export default function TenantStudentPortal({
         setAvatarPreview(compressed);
 
         try {
-          // Update student in database
-          const allStudents = await db.getStudents(params.tenant);
-          const updated = allStudents.map((s) =>
-            s.id === student.id ? { ...s, avatarUrl: compressed } : s
-          );
-          await db.saveStudents(params.tenant, updated);
+          // Update only this single student's avatar
+          await db.updateStudent(student.id, { avatarUrl: compressed });
 
           // Update current student state
           const updatedStudent = { ...student, avatarUrl: compressed };
           setStudent(updatedStudent);
           localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(updatedStudent));
+
+          // Also update avatar in all matching studentRecords locally to avoid mismatch
+          setStudentRecords(prev => prev.map(r => r.phone === student.phone ? { ...r, avatarUrl: compressed } : r));
         } catch (err) {
           console.error("Failed to update avatar:", err);
         }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubscribeToCourse = async (course: Course) => {
+    if (!student) return;
+    setSubmittingCourseId(course.id);
+    try {
+      // Add application for the student for this new course
+      await db.addApplication(params.tenant, {
+        fullName: student.name,
+        nationalId: student.nationalId || "00000000000000",
+        phone: student.phone,
+        courseId: course.id,
+        photoUrl: student.avatarUrl || ""
+      });
+
+      // Refresh applications list
+      const apps = await db.getApplicationsByPhone(params.tenant, student.phone);
+      setMyApplications(apps);
+      alert(`🎉 تم إرسال طلب الاشتراك في دورة "${course.title}" بنجاح وهو قيد المراجعة حالياً!`);
+    } catch (err: any) {
+      alert(`⚠️ فشل تقديم الطلب: ${err.message || err}`);
+    } finally {
+      setSubmittingCourseId(null);
     }
   };
 
@@ -189,58 +228,149 @@ export default function TenantStudentPortal({
           </button>
         </div>
 
-        {/* Dashboard Columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Dashboard Columns with smooth fade-in animation */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-[fadeIn_0.5s_ease-out]">
           
-          {/* Active Courses (2/3 width) */}
-          <div className="lg:col-span-2 space-y-6">
-            <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-              <BookOpen size={24} className="text-blue-600" /> دوراتك التدريبية المشترك بها
-            </h3>
+          {/* Active & Other Courses (2/3 width) */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* Active Courses */}
+            <div className="space-y-6">
+              <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                <BookOpen size={24} className="text-blue-600" /> دوراتك التدريبية المشترك بها
+              </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {availableCourses.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group"
-                >
-                  <div className="h-44 relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden">
-                    {c.coverImage ? (
-                      <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="text-center p-6">
-                        <BookOpen size={44} className="mx-auto mb-2 opacity-80" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Academy Course</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {courses.filter(c => studentRecords.some(r => r.courseId === c.id)).map((c) => {
+                  const matchingRecord = studentRecords.find(r => r.courseId === c.id);
+                  const rollNumber = matchingRecord?.rollNumber || student.rollNumber;
+                  return (
+                    <div
+                      key={c.id}
+                      className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-md hover:shadow-xl hover:shadow-blue-500/5 hover:-translate-y-1.5 transition-all duration-300 flex flex-col group"
+                    >
+                      <div className="h-44 relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                        {c.coverImage ? (
+                          <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <div className="text-center p-6">
+                            <BookOpen size={44} className="mx-auto mb-2 opacity-80" />
+                            <span className="text-xs font-bold uppercase tracking-wider">Academy Course</span>
+                          </div>
+                        )}
+                        <span className="absolute top-4 left-4 bg-emerald-500 text-white text-xs font-extrabold px-3 py-1 rounded-full shadow-md">
+                          مقبول ونشط
+                        </span>
                       </div>
-                    )}
-                    <span className="absolute top-4 left-4 bg-emerald-500 text-white text-xs font-extrabold px-3 py-1 rounded-full shadow-md">
-                      مقبول ونشط
-                    </span>
-                  </div>
 
-                  <div className="p-6 flex-grow flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{c.title}</h4>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 font-medium">
-                        {c.description}
-                      </p>
-                      <div className="flex gap-4 mb-4 text-xs font-bold text-slate-400 border-t border-slate-50 dark:border-slate-700 pt-4">
-                        <span>📚 المحاضرات: {c.lecturesCount}</span>
-                        <span>•</span>
-                        <span>👥 رقم كشفك: #{student.rollNumber}</span>
+                      <div className="p-6 flex-grow flex flex-col justify-between">
+                        <div>
+                          <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{c.title}</h4>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 font-medium">
+                            {c.description}
+                          </p>
+                          <div className="flex gap-4 mb-4 text-xs font-bold text-slate-400 border-t border-slate-50 dark:border-slate-700 pt-4">
+                            <span>📚 المحاضرات: {c.lecturesCount}</span>
+                            <span>•</span>
+                            <span className="text-blue-600 dark:text-blue-400">👥 رقم كشفك: #{rollNumber}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleSelectCourse(c)}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-blue-500/10 hover:shadow-blue-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-95 duration-200"
+                        >
+                          <span>دخول الكورس والتعلم 🚀</span>
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                    <button
-                      onClick={() => handleSelectCourse(c)}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <span>دخول الكورس والتعلم 🚀</span>
-                    </button>
+            {/* Other Available Courses */}
+            {(() => {
+              const otherCourses = courses.filter(c => !studentRecords.some(r => r.courseId === c.id));
+              if (otherCourses.length === 0) return null;
+              return (
+                <div className="space-y-6 pt-8 border-t border-slate-200/80 dark:border-slate-700/80">
+                  <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Sparkles size={24} className="text-yellow-500 animate-pulse" /> دورات متاحة للاشتراك
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {otherCourses.map((c) => {
+                      const hasPendingApp = myApplications.some(a => a.courseId === c.id && a.status === "pending");
+                      return (
+                        <div
+                          key={c.id}
+                          className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-md hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1.5 transition-all duration-300 flex flex-col group"
+                        >
+                          <div className="h-44 relative bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white overflow-hidden">
+                            {c.coverImage ? (
+                              <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter grayscale-[15%] group-hover:grayscale-0" />
+                            ) : (
+                              <div className="text-center p-6">
+                                <BookOpen size={44} className="mx-auto mb-2 opacity-80" />
+                                <span className="text-xs font-bold uppercase tracking-wider">Academy Course</span>
+                              </div>
+                            )}
+                            {hasPendingApp ? (
+                              <span className="absolute top-4 left-4 bg-amber-500 text-white text-xs font-extrabold px-3 py-1 rounded-full shadow-md animate-pulse">
+                                ⏳ قيد المراجعة
+                              </span>
+                            ) : (
+                              <span className="absolute top-4 left-4 bg-indigo-500 text-white text-xs font-extrabold px-3 py-1 rounded-full shadow-md">
+                                متاح للتسجيل
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="p-6 flex-grow flex flex-col justify-between">
+                            <div>
+                              <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{c.title}</h4>
+                              <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 font-medium">
+                                {c.description}
+                              </p>
+                              <div className="flex gap-4 mb-4 text-xs font-bold text-slate-400 border-t border-slate-50 dark:border-slate-700 pt-4">
+                                <span>📚 المحاضرات: {c.lecturesCount}</span>
+                                <span>•</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{c.price} ج.م</span>
+                              </div>
+                            </div>
+
+                            {hasPendingApp ? (
+                              <button
+                                disabled
+                                className="w-full bg-slate-100 dark:bg-slate-750 text-slate-400 dark:text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed flex items-center justify-center gap-2 border border-slate-200/40 dark:border-slate-700"
+                              >
+                                <span>طلبك قيد المراجعة حالياً...</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleSubscribeToCourse(c)}
+                                disabled={submittingCourseId === c.id}
+                                className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-750 hover:to-blue-750 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 transform active:scale-95 duration-200"
+                              >
+                                {submittingCourseId === c.id ? (
+                                  <span>جاري التقديم...</span>
+                                ) : (
+                                  <>
+                                    <span>طلب اشتراك فوري 🚀</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })()}
+
           </div>
 
           {/* Leaderboard Rankings (1/3 width) */}

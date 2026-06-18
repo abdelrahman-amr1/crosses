@@ -132,20 +132,21 @@ async function runQuery(query: string, values?: any[]) {
     // Server-side direct pg Pool query
     const { Pool } = await import("pg");
     const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:5432/postgres";
-    const pool = new Pool({
-      connectionString,
-      ssl: {
-        rejectUnauthorized: false
-      },
-      max: 1,
-      idleTimeoutMillis: 1000
-    });
-    try {
-      const result = await pool.query(query, values || []);
-      return { rows: result.rows, rowCount: result.rowCount };
-    } finally {
-      await pool.end();
+    const globalAny = globalThis as any;
+    if (!globalAny.dbPool) {
+      globalAny.dbPool = new Pool({
+        connectionString,
+        ssl: {
+          rejectUnauthorized: false
+        },
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000
+      });
     }
+    const pool = globalAny.dbPool;
+    const result = await pool.query(query, values || []);
+    return { rows: result.rows, rowCount: result.rowCount };
   }
 }
 
@@ -800,5 +801,130 @@ export const db = {
     }
 
     return progress;
+  },
+
+  // Optimized operations for single students & applications
+  getStudentByPhone: async (tenant: string, phone: string): Promise<Student | null> => {
+    const res = await runQuery(`
+      SELECT 
+        s.id, 
+        s.name, 
+        s.email, 
+        s.course_id as "courseId", 
+        s.avatar_url as "avatarUrl", 
+        s.national_id as "nationalId", 
+        s.phone, 
+        s.roll_number as "rollNumber", 
+        s.whatsapp_group_url as "whatsappGroupUrl", 
+        s.lecture_url as "lectureUrl"
+      FROM students s
+      JOIN institutions i ON s.institution_id = i.id
+      WHERE i.subdomain = $1 AND s.phone = $2
+      LIMIT 1;
+    `, [tenant, phone]);
+    return res.rows[0] || null;
+  },
+
+  getStudentsByPhone: async (tenant: string, phone: string): Promise<Student[]> => {
+    const res = await runQuery(`
+      SELECT 
+        s.id, 
+        s.name, 
+        s.email, 
+        s.course_id as "courseId", 
+        s.avatar_url as "avatarUrl", 
+        s.national_id as "nationalId", 
+        s.phone, 
+        s.roll_number as "rollNumber", 
+        s.whatsapp_group_url as "whatsappGroupUrl", 
+        s.lecture_url as "lectureUrl"
+      FROM students s
+      JOIN institutions i ON s.institution_id = i.id
+      WHERE i.subdomain = $1 AND s.phone = $2
+      ORDER BY s.created_at ASC;
+    `, [tenant, phone]);
+    return res.rows;
+  },
+
+  getApplicationsByPhone: async (tenant: string, phone: string): Promise<Application[]> => {
+    const res = await runQuery(`
+      SELECT 
+        a.id, 
+        a.full_name as "fullName", 
+        a.national_id as "nationalId", 
+        a.phone, 
+        a.course_id as "courseId", 
+        a.photo_url as "photoUrl", 
+        a.status, 
+        a.created_at as "createdAt"
+      FROM applications a
+      JOIN institutions i ON a.institution_id = i.id
+      WHERE i.subdomain = $1 AND a.phone = $2
+      ORDER BY a.created_at DESC;
+    `, [tenant, phone]);
+    return res.rows;
+  },
+
+  addStudent: async (tenant: string, student: Omit<Student, "id">): Promise<Student> => {
+    const instRes = await runQuery(`SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1;`, [tenant]);
+    if (instRes.rows.length === 0) throw new Error("Institution not found");
+    const instId = instRes.rows[0].id;
+    
+    const res = await runQuery(`
+      INSERT INTO students (institution_id, name, email, course_id, avatar_url, national_id, phone, roll_number, whatsapp_group_url, lecture_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING 
+        id, 
+        name, 
+        email, 
+        course_id as "courseId", 
+        avatar_url as "avatarUrl", 
+        national_id as "nationalId", 
+        phone, 
+        roll_number as "rollNumber", 
+        whatsapp_group_url as "whatsappGroupUrl", 
+        lecture_url as "lectureUrl";
+    `, [instId, student.name, student.email, student.courseId, student.avatarUrl || null, student.nationalId, student.phone, student.rollNumber, student.whatsappGroupUrl || null, student.lectureUrl || null]);
+    
+    return res.rows[0];
+  },
+
+  updateStudent: async (id: string, updates: Partial<Student>): Promise<void> => {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let index = 1;
+    
+    const mapping: Record<string, string> = {
+      name: "name",
+      email: "email",
+      courseId: "course_id",
+      avatarUrl: "avatar_url",
+      nationalId: "national_id",
+      phone: "phone",
+      rollNumber: "roll_number",
+      whatsappGroupUrl: "whatsapp_group_url",
+      lectureUrl: "lecture_url"
+    };
+
+    for (const [key, val] of Object.entries(updates)) {
+      const col = mapping[key];
+      if (col !== undefined) {
+        fields.push(`${col} = $${index}`);
+        values.push(val);
+        index++;
+      }
+    }
+
+    if (fields.length === 0) return;
+    values.push(id);
+    await runQuery(`UPDATE students SET ${fields.join(", ")} WHERE id = $${index};`, values);
+  },
+
+  deleteStudent: async (id: string): Promise<void> => {
+    await runQuery(`DELETE FROM students WHERE id = $1;`, [id]);
+  },
+
+  updateApplicationStatus: async (id: string, status: "pending" | "approved" | "rejected"): Promise<void> => {
+    await runQuery(`UPDATE applications SET status = $1 WHERE id = $2;`, [status, id]);
   }
 };

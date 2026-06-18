@@ -26,3 +26,14 @@ body {
     rgb(var(--background-start-rgb));
   min-height: 100vh;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -129,11 +129,15 @@ export default function TenantAdminDashboard({
   useEffect(() => {
     async function loadData() {
       try {
-        let apps = await db.getApplications(params.tenant);
-        let stds = await db.getStudents(params.tenant);
-        let crs = await db.getCourses(params.tenant);
-        let fcs = await db.getFlashcards(params.tenant);
-        let qzs = await db.getQuizzes(params.tenant);
+        let [apps, stds, crs, fcs, qzs, insts, prog] = await Promise.all([
+          db.getApplications(params.tenant),
+          db.getStudents(params.tenant),
+          db.getCourses(params.tenant),
+          db.getFlashcards(params.tenant),
+          db.getQuizzes(params.tenant),
+          db.getInstitutions(),
+          db.getTenantProgress(params.tenant)
+        ]);
         
         // Check if client-side localStorage migration is needed
         if (typeof window !== "undefined") {
@@ -204,8 +208,8 @@ export default function TenantAdminDashboard({
               const list = JSON.parse(localInstListStr) as Institution[];
               const matched = list.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
               if (matched) {
-                const insts = await db.getInstitutions();
-                const updatedInsts = insts.map(inst => {
+                const fetchedInsts = await db.getInstitutions();
+                const updatedInsts = fetchedInsts.map(inst => {
                   if (inst.subdomain.toLowerCase() === params.tenant.toLowerCase()) {
                     return { 
                       ...inst, 
@@ -237,13 +241,11 @@ export default function TenantAdminDashboard({
         setFlashcards(fcs);
         setQuizzes(qzs);
         
-        const insts = await db.getInstitutions();
         const inst = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
         if (inst) {
           setCurrentInstitution(inst);
         }
         
-        const prog = await db.getTenantProgress(params.tenant);
         setTenantProgress(prog);
       } catch (err) {
         console.error("Error loading admin data:", err);
@@ -336,9 +338,8 @@ export default function TenantAdminDashboard({
     }
     const autoPassword = app.phone; // default password is mobile number
 
-    // 3. Create approved Student record
-    const studentRecord: Student = {
-      id: generateUUID(),
+    // 3. Create approved Student record directly on DB (1 query)
+    const studentRecord = await db.addStudent(params.tenant, {
       name: app.fullName,
       email: autoEmail,
       courseId: app.courseId,
@@ -348,17 +349,14 @@ export default function TenantAdminDashboard({
       rollNumber: nextRollNumber,
       whatsappGroupUrl: matchedCourse.whatsappGroupUrl,
       lectureUrl: matchedCourse.lectureUrl
-    };
+    });
 
-    // 4. Save to lists
-    const updatedStudents = [...students, studentRecord];
-    setStudents(updatedStudents);
-    await db.saveStudents(params.tenant, updatedStudents);
+    // 4. Update lists locally and save single application status on DB (1 query)
+    setStudents([...students, studentRecord]);
 
-    // Update application status
     const updatedApps = applications.map(a => a.id === app.id ? { ...a, status: "approved" as const } : a);
     setApplications(updatedApps);
-    await db.saveApplications(params.tenant, updatedApps);
+    await db.updateApplicationStatus(app.id, "approved");
 
     // 5. Construct official WhatsApp Message with dynamic entry URL based on hosting
     const rootUrl = typeof window !== "undefined" && !window.location.origin.includes("localhost")
@@ -398,7 +396,7 @@ export default function TenantAdminDashboard({
     if (confirm(`هل تريد رفض طلب التحاق الطالب "${app.fullName}"؟`)) {
       const updatedApps = applications.map(a => a.id === app.id ? { ...a, status: "rejected" as const } : a);
       setApplications(updatedApps);
-      await db.saveApplications(params.tenant, updatedApps);
+      await db.updateApplicationStatus(app.id, "rejected");
       showAlert("🗑️ تم رفض طلب الالتحاق وحفظ الحالة.");
     }
   };
@@ -418,8 +416,8 @@ export default function TenantAdminDashboard({
       const maxRoll = courseStudents.length > 0 ? Math.max(...courseStudents.map(s => s.rollNumber || 1)) : 0;
       const nextRollNumber = maxRoll + 1;
 
-      const studentObj: Student = {
-        id: generateUUID(),
+      // Add to database directly (1 query)
+      const studentObj = await db.addStudent(params.tenant, {
         name: newStudent.name,
         email: newStudent.email,
         courseId: newStudent.courseId,
@@ -428,11 +426,9 @@ export default function TenantAdminDashboard({
         rollNumber: nextRollNumber,
         whatsappGroupUrl: matchedCourse.whatsappGroupUrl,
         lectureUrl: matchedCourse.lectureUrl
-      };
+      });
       
-      const updated = [...students, studentObj];
-      setStudents(updated);
-      await db.saveStudents(params.tenant, updated);
+      setStudents([...students, studentObj]);
       setNewStudent({ name: "", email: "", courseId: "web-dev" });
       
       showAlert(`✅ تم إنشاء حساب الطالب بنجاح! رقم كشفه: #${nextRollNumber}`);
@@ -443,20 +439,24 @@ export default function TenantAdminDashboard({
     const s = students.find(x => x.id === editingStudentId);
     if (!s) return;
     
+    // Update only the edited student (1 query)
+    await db.updateStudent(editingStudentId, editingStudentData);
+    
     const updatedStudent = { ...s, ...editingStudentData };
     const updatedList = students.map(st => st.id === editingStudentId ? updatedStudent : st);
     
     setStudents(updatedList);
-    await db.saveStudents(params.tenant, updatedList);
     setEditingStudentId(null);
     showAlert("✅ تم تعديل بيانات الطالب بنجاح!");
   };
 
   const handleDeleteStudent = async (id: string) => {
     if (confirm("هل تريد حذف هذا الطالب وحجزه؟")) {
+      // Delete from database (1 query)
+      await db.deleteStudent(id);
+      
       const updated = students.filter(s => s.id !== id);
       setStudents(updated);
-      await db.saveStudents(params.tenant, updated);
       showAlert("🗑️ تم حذف الطالب بنجاح.");
     }
   };
