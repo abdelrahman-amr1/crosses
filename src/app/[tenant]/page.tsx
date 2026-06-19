@@ -26,9 +26,8 @@ export default function TenantStudentPortal({
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [submittingCourseId, setSubmittingCourseId] = useState<string | null>(null);
 
-  // Load configuration and courses on mount
+  // Load configuration and courses on mount, and poll courses every 4 seconds
   useEffect(() => {
-    // Fetch current institution info
     db.getInstitutions().then(insts => {
       const current = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
       if (current) {
@@ -36,8 +35,13 @@ export default function TenantStudentPortal({
       }
     }).catch(console.error);
 
-    // Fetch all courses for this tenant on mount
+    // Initial load
     db.getCourses(params.tenant).then(setCourses).catch(console.error);
+
+    // Poll courses every 4 seconds
+    const interval = setInterval(() => {
+      db.getCourses(params.tenant).then(setCourses).catch(console.error);
+    }, 4000);
 
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
@@ -49,11 +53,15 @@ export default function TenantStudentPortal({
         setAvatarPreview(studentInfo.avatarUrl || "");
       }
     }
+
+    return () => clearInterval(interval);
   }, [params.tenant]);
 
-  // Load student records and applications when logged in
+  // Load and poll student records and applications when logged in
   useEffect(() => {
-    if (isLoggedIn && student) {
+    if (!isLoggedIn || !student?.phone) return;
+
+    const fetchData = () => {
       Promise.all([
         db.getStudentsByPhone(params.tenant, student.phone),
         db.getApplicationsByPhone(params.tenant, student.phone),
@@ -71,7 +79,13 @@ export default function TenantStudentPortal({
           localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(activeRecord));
         }
       }).catch(console.error);
-    }
+    };
+
+    fetchData(); // initial fetch
+
+    const interval = setInterval(fetchData, 4000); // poll every 4 seconds
+
+    return () => clearInterval(interval);
   }, [isLoggedIn, student?.phone, params.tenant]);
 
   const handleLogin = async (e: React.FormEvent) => {

@@ -261,9 +261,38 @@ export default function TenantAdminDashboard({
     }
   }, [params.tenant]);
 
-  // Load attendance when tab or filters change
+  // Poll dynamic admin data (applications, students, courses, progress) when logged in
   useEffect(() => {
-    if (activeTab === "attendance" && attendanceCourseId) {
+    if (!isAdminLoggedIn) return;
+
+    const fetchData = async () => {
+      try {
+        const [apps, stds, crs, prog] = await Promise.all([
+          db.getApplications(params.tenant),
+          db.getStudents(params.tenant),
+          db.getCourses(params.tenant),
+          db.getTenantProgress(params.tenant)
+        ]);
+
+        setApplications(apps);
+        setStudents(stds);
+        setCourses(crs);
+        setTenantProgress(prog);
+      } catch (err) {
+        console.error("Error polling admin data:", err);
+      }
+    };
+
+    const interval = setInterval(fetchData, 4000); // poll every 4 seconds
+
+    return () => clearInterval(interval);
+  }, [isAdminLoggedIn, params.tenant]);
+
+  // Load and poll attendance, evaluations, scores, and tasks when tab or filters change
+  useEffect(() => {
+    if (activeTab !== "attendance" || !attendanceCourseId) return;
+
+    const fetchData = () => {
       Promise.all([
         db.getAttendances(params.tenant, attendanceCourseId, attendanceLectureNum),
         db.getAllEvaluationsForLecture(params.tenant, attendanceLectureNum),
@@ -275,7 +304,13 @@ export default function TenantAdminDashboard({
         setAttendanceScores(scores);
         setStudentTasks(tasks);
       }).catch(console.error);
-    }
+    };
+
+    fetchData(); // initial fetch
+
+    const interval = setInterval(fetchData, 4000); // poll every 4 seconds
+
+    return () => clearInterval(interval);
   }, [activeTab, attendanceCourseId, attendanceLectureNum, params.tenant]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {

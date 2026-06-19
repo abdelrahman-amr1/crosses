@@ -370,11 +370,10 @@ export const db = {
     if (instRes.rows.length === 0) return;
     const instId = instRes.rows[0].id;
 
-    // 2. Upsert cards
-    const cardIds: string[] = [];
-    for (const c of cards) {
-      cardIds.push(c.id);
-      await runQuery(`
+    // 2. Upsert cards in parallel
+    const cardIds = cards.map(c => c.id);
+    await Promise.all(cards.map(c =>
+      runQuery(`
         INSERT INTO flashcards (id, course_id, question, answer, difficulty, lecture_number)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (id) DO UPDATE SET
@@ -382,8 +381,8 @@ export const db = {
           answer = EXCLUDED.answer,
           difficulty = EXCLUDED.difficulty,
           lecture_number = EXCLUDED.lecture_number;
-      `, [c.id, c.courseId, c.question, c.answer, c.difficulty, c.lectureNumber || 1]);
-    }
+      `, [c.id, c.courseId, c.question, c.answer, c.difficulty, c.lectureNumber || 1])
+    ));
 
     // 3. Delete cards not in list for this institution's courses
     if (cardIds.length > 0) {
@@ -438,11 +437,10 @@ export const db = {
     if (instRes.rows.length === 0) return;
     const instId = instRes.rows[0].id;
 
-    // 2. Upsert quizzes
-    const quizIds: string[] = [];
-    for (const q of quizzes) {
-      quizIds.push(q.id);
-      await runQuery(`
+    // 2. Upsert quizzes in parallel
+    const quizIds = quizzes.map(q => q.id);
+    await Promise.all(quizzes.map(q =>
+      runQuery(`
         INSERT INTO quizzes (id, course_id, question, options, correct_option, lecture_number)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (id) DO UPDATE SET
@@ -450,8 +448,8 @@ export const db = {
           options = EXCLUDED.options,
           correct_option = EXCLUDED.correct_option,
           lecture_number = EXCLUDED.lecture_number;
-      `, [q.id, q.courseId, q.question, q.options, q.correctOption, q.lectureNumber]);
-    }
+      `, [q.id, q.courseId, q.question, q.options, q.correctOption, q.lectureNumber])
+    ));
 
     // 3. Delete quizzes not in list for this institution's courses
     if (quizIds.length > 0) {
@@ -496,11 +494,10 @@ export const db = {
     if (instRes.rows.length === 0) return;
     const instId = instRes.rows[0].id;
 
-    // 2. Upsert students
-    const studentIds: string[] = [];
-    for (const s of students) {
-      studentIds.push(s.id);
-      await runQuery(`
+    // 2. Upsert students in parallel
+    const studentIds = students.map(s => s.id);
+    await Promise.all(students.map(s =>
+      runQuery(`
         INSERT INTO students (id, institution_id, name, email, course_id, avatar_url, national_id, phone, roll_number, whatsapp_group_url, lecture_url)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (id) DO UPDATE SET
@@ -513,8 +510,8 @@ export const db = {
           roll_number = EXCLUDED.roll_number,
           whatsapp_group_url = EXCLUDED.whatsapp_group_url,
           lecture_url = EXCLUDED.lecture_url;
-      `, [s.id, instId, s.name, s.email, s.courseId, s.avatarUrl || null, s.nationalId, s.phone, s.rollNumber, s.whatsappGroupUrl || null, s.lectureUrl || null]);
-    }
+      `, [s.id, instId, s.name, s.email, s.courseId, s.avatarUrl || null, s.nationalId, s.phone, s.rollNumber, s.whatsappGroupUrl || null, s.lectureUrl || null])
+    ));
 
     // 3. Delete students not in list for this institution
     if (studentIds.length > 0) {
@@ -556,11 +553,10 @@ export const db = {
     if (instRes.rows.length === 0) return;
     const instId = instRes.rows[0].id;
 
-    // 2. Upsert apps
-    const appIds: string[] = [];
-    for (const a of apps) {
-      appIds.push(a.id);
-      await runQuery(`
+    // 2. Upsert apps in parallel
+    const appIds = apps.map(a => a.id);
+    await Promise.all(apps.map(a =>
+      runQuery(`
         INSERT INTO applications (id, institution_id, full_name, national_id, phone, course_id, photo_url, status, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (id) DO UPDATE SET
@@ -570,8 +566,8 @@ export const db = {
           phone = EXCLUDED.phone,
           course_id = EXCLUDED.course_id,
           photo_url = EXCLUDED.photo_url;
-      `, [a.id, instId, a.fullName, a.nationalId, a.phone, a.courseId, a.photoUrl, a.status, a.createdAt]);
-    }
+      `, [a.id, instId, a.fullName, a.nationalId, a.phone, a.courseId, a.photoUrl, a.status, a.createdAt])
+    ));
 
     // 3. Delete apps not in list for this institution
     if (appIds.length > 0) {
