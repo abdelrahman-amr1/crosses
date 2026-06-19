@@ -97,10 +97,10 @@ export default function TenantAdminDashboard({
   const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
   
   // Course edit & addition forms
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", lecturesCount: 12, coverImage: "" });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingCourseData, setEditingCourseData] = useState({ 
-    title: "", description: "", price: 0, lecturesCount: 1, 
+    title: "", description: "", price: 0, currency: "ج.م", lecturesCount: 1, 
     coverImage: "", lectureUrl: "", whatsappGroupUrl: "",
     isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true,
     lectureControls: {} as Record<number, LectureControl>
@@ -470,6 +470,7 @@ export default function TenantAdminDashboard({
         title: newCourse.title,
         description: newCourse.description,
         price: Number(newCourse.price),
+        currency: newCourse.currency || "ج.م",
         lecturesCount: Number(newCourse.lecturesCount),
         lectureUrl: "https://meet.google.com/abc-defg-hij",
         whatsappGroupUrl: "https://chat.whatsapp.com/G1x2y3z4",
@@ -484,7 +485,7 @@ export default function TenantAdminDashboard({
       const updated = [...courses, courseObj];
       setCourses(updated);
       await db.saveCourses(params.tenant, updated);
-      setNewCourse({ title: "", description: "", price: 500, lecturesCount: 12, coverImage: "" });
+      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", lecturesCount: 12, coverImage: "" });
       showAlert(`✅ تم إضافة الدورة التعليمية "${courseObj.title}" بنجاح.`);
     }
   };
@@ -495,6 +496,7 @@ export default function TenantAdminDashboard({
       title: course.title,
       description: course.description,
       price: course.price,
+      currency: course.currency || "ج.م",
       lecturesCount: course.lecturesCount,
       lectureUrl: course.lectureUrl,
       whatsappGroupUrl: course.whatsappGroupUrl,
@@ -517,6 +519,7 @@ export default function TenantAdminDashboard({
               title: editingCourseData.title,
               description: editingCourseData.description,
               price: Number(editingCourseData.price),
+              currency: editingCourseData.currency || "ج.م",
               lecturesCount: Number(editingCourseData.lecturesCount),
               lectureUrl: editingCourseData.lectureUrl, 
               whatsappGroupUrl: editingCourseData.whatsappGroupUrl,
@@ -1517,7 +1520,7 @@ export default function TenantAdminDashboard({
                                   className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none min-h-[60px]"
                                 />
                               </div>
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-3 gap-2">
                                 <div>
                                   <label className="block text-[10px] font-bold text-slate-400 mb-1">عدد المحاضرات:</label>
                                   <input
@@ -1528,13 +1531,29 @@ export default function TenantAdminDashboard({
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[10px] font-bold text-slate-400 mb-1">سعر الاشتراك (ج.م):</label>
+                                  <label className="block text-[10px] font-bold text-slate-400 mb-1">سعر الاشتراك:</label>
                                   <input
                                     type="number"
                                     value={editingCourseData.price}
                                     onChange={(e) => setEditingCourseData({ ...editingCourseData, price: Number(e.target.value) })}
                                     className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none"
                                   />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-400 mb-1">العملة:</label>
+                                  <select
+                                    value={editingCourseData.currency || "ج.م"}
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, currency: e.target.value })}
+                                    className="w-full text-xs px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-900 focus:outline-none cursor-pointer"
+                                  >
+                                    <option value="ج.م">ج.م (جنيه مصري)</option>
+                                    <option value="ر.س">ر.س (ريال سعودي)</option>
+                                    <option value="د.إ">د.إ (درهم إماراتي)</option>
+                                    <option value="د.ك">د.ك (دينار كويتي)</option>
+                                    <option value="د.أ">د.أ (دينار أردني)</option>
+                                    <option value="$">$ (دولار أمريكي)</option>
+                                    <option value="€">€ (يورو)</option>
+                                  </select>
                                 </div>
                               </div>
                               <div>
@@ -1705,7 +1724,7 @@ export default function TenantAdminDashboard({
                         </div>
                         <div className="flex justify-between items-center border-t border-slate-200/50 dark:border-slate-800 pt-4 mt-4 text-xs font-bold">
                           <span className="text-slate-400">محاضرات الدورة: {c.lecturesCount} محاضرات</span>
-                          <span className="text-green-600">{c.price} ج.م</span>
+                          <span className="text-green-600">{c.price} {c.currency || 'ج.م'}</span>
                         </div>
                       </div>
                     </div>
@@ -1741,7 +1760,7 @@ export default function TenantAdminDashboard({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-bold mb-2">عدد المحاضرات</label>
                     <input
@@ -1752,13 +1771,29 @@ export default function TenantAdminDashboard({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-2">سعر الاشتراك (ج.م)</label>
+                    <label className="block text-xs font-bold mb-2">سعر الاشتراك</label>
                     <input
                       type="number"
                       value={newCourse.price}
                       onChange={(e) => setNewCourse({ ...newCourse, price: Number(e.target.value) })}
                       className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-2">العملة</label>
+                    <select
+                      value={newCourse.currency || "ج.م"}
+                      onChange={(e) => setNewCourse({ ...newCourse, currency: e.target.value })}
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      <option value="ج.م">ج.م (جنيه مصري)</option>
+                      <option value="ر.س">ر.س (ريال سعودي)</option>
+                      <option value="د.إ">د.إ (درهم إماراتي)</option>
+                      <option value="د.ك">د.ك (دينار كويتي)</option>
+                      <option value="د.أ">د.أ (دينار أردني)</option>
+                      <option value="$">$ (دولار أمريكي)</option>
+                      <option value="€">€ (يورو)</option>
+                    </select>
                   </div>
                 </div>
 

@@ -207,7 +207,7 @@ export default function StudentRegistration({
             >
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.title} - ({c.price} ج.م)
+                  {c.title} - ({c.price} {c.currency || 'ج.م'})
                 </option>
               ))}
             </select>
@@ -230,7 +230,7 @@ export default function StudentRegistration({
                     <div className="mt-2 flex gap-3 text-[10px] font-bold text-slate-400 justify-center sm:justify-start">
                       <span>📚 المحاضرات: {selectedCourse.lecturesCount} محاضرات</span>
                       <span>•</span>
-                      <span className="text-green-600 font-extrabold">{selectedCourse.price} ج.م</span>
+                      <span className="text-green-600 font-extrabold">{selectedCourse.price} {selectedCourse.currency || 'ج.م'}</span>
                     </div>
                   </div>
                 </div>

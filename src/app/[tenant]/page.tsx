@@ -336,7 +336,7 @@ export default function TenantStudentPortal({
                               <div className="flex gap-4 mb-4 text-xs font-bold text-slate-400 border-t border-slate-50 dark:border-slate-700 pt-4">
                                 <span>📚 المحاضرات: {c.lecturesCount}</span>
                                 <span>•</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{c.price} ج.م</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{c.price} {c.currency || 'ج.م'}</span>
                               </div>
                             </div>
 
