@@ -6,7 +6,7 @@ import { db, Course, Student, Institution, Application } from "@/lib/db";
 import { compressBase64 } from "@/lib/imageCompressor";
 import CoursePanel from "@/components/CoursePanel";
 import Leaderboard from "@/components/Leaderboard";
-import { LogOut, BookOpen, User, Camera, ShieldCheck, ClipboardList, Send, Phone, Sparkles } from "lucide-react";
+import { LogOut, BookOpen, User, Camera, ShieldCheck, ClipboardList, Send, Phone, Sparkles, Upload } from "lucide-react";
 
 export default function TenantStudentPortal({
   params,
@@ -25,6 +25,17 @@ export default function TenantStudentPortal({
   const [avatarPreview, setAvatarPreview] = useState<string>("");
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [submittingCourseId, setSubmittingCourseId] = useState<string | null>(null);
+
+  // Profile Completion Modal states
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [pendingCourseToSubscribe, setPendingCourseToSubscribe] = useState<Course | null>(null);
+  const [modalDocType, setModalDocType] = useState<"egypt" | "passport" | "other">("egypt");
+  const [modalNationalId, setModalNationalId] = useState("");
+  const [modalAvatarBase64, setModalAvatarBase64] = useState("");
+  const [modalAvatarFileName, setModalAvatarFileName] = useState("");
+  const [modalFullName, setModalFullName] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [modalSaving, setModalSaving] = useState(false);
 
   // Load configuration and courses on mount, and poll courses every 4 seconds
   useEffect(() => {
@@ -155,12 +166,29 @@ export default function TenantStudentPortal({
 
   const handleSubscribeToCourse = async (course: Course) => {
     if (!student) return;
+
+    // Check if profile is incomplete for paid courses
+    const isPaid = Number(course.price) > 0;
+    const isIdIncomplete = !student.nationalId || student.nationalId === "00000000000000" || /^0+$/.test(student.nationalId) || student.nationalId.length < 5;
+    const isPhotoIncomplete = !student.avatarUrl;
+
+    if (isPaid && (isIdIncomplete || isPhotoIncomplete)) {
+      setPendingCourseToSubscribe(course);
+      setModalFullName(student.name);
+      setModalNationalId(isIdIncomplete ? "" : student.nationalId);
+      setModalAvatarBase64(student.avatarUrl || "");
+      setModalDocType(student.nationalId?.length === 14 ? "egypt" : "passport");
+      setModalError("");
+      setShowCompletionModal(true);
+      return;
+    }
+
     setSubmittingCourseId(course.id);
     try {
       // Add application for the student for this new course
       await db.addApplication(params.tenant, {
         fullName: student.name,
-        nationalId: student.nationalId || "00000000000000",
+        nationalId: student.nationalId,
         phone: student.phone,
         courseId: course.id,
         photoUrl: student.avatarUrl || ""
@@ -174,6 +202,105 @@ export default function TenantStudentPortal({
       alert(`⚠️ فشل تقديم الطلب: ${err.message || err}`);
     } finally {
       setSubmittingCourseId(null);
+    }
+  };
+
+  const handleSaveAndSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalError("");
+
+    if (!student || !pendingCourseToSubscribe) return;
+
+    const nameWords = modalFullName.trim().split(/\s+/);
+    if (nameWords.length < 4) {
+      setModalError("⚠️ يرجى إدخال اسمك رباعياً بالكامل.");
+      return;
+    }
+
+    if (/^0+$/.test(modalNationalId) || modalNationalId.length < 5) {
+      setModalError("⚠️ يرجى إدخال رقم إثبات شخصية صحيح (لا يمكن أن يكون كله أصفار).");
+      return;
+    }
+
+    if (modalDocType === "egypt") {
+      if (modalNationalId.length !== 14 || !/^\d+$/.test(modalNationalId)) {
+        setModalError("⚠️ الرقم القومي المصري يجب أن يتكون من 14 رقماً صحيحاً.");
+        return;
+      }
+    } else if (modalDocType === "passport") {
+      if (modalNationalId.length < 5 || modalNationalId.length > 20) {
+        setModalError("⚠️ رقم جواز السفر يجب أن يكون بين 5 إلى 20 خانة.");
+        return;
+      }
+    } else {
+      if (modalNationalId.length < 6 || modalNationalId.length > 20) {
+        setModalError("⚠️ رقم الهوية الوطنية يجب أن يكون بين 6 إلى 20 خانة.");
+        return;
+      }
+    }
+
+    if (!modalAvatarBase64) {
+      setModalError("⚠️ يرجى رفع صورتك الشخصية لإتمام الاشتراك.");
+      return;
+    }
+
+    setModalSaving(true);
+    try {
+      // Check duplicate nationalId in the database (excluding current student)
+      const existingStudents = await db.getStudents(params.tenant);
+      const isDuplicateId = existingStudents.some(s => s.id !== student.id && s.nationalId === modalNationalId);
+      if (isDuplicateId) {
+        setModalError("⚠️ رقم إثبات الشخصية هذا مسجل بالفعل لطالب آخر. يرجى إدخال رقمك الصحيح.");
+        setModalSaving(false);
+        return;
+      }
+
+      // 1. Update student profile in database
+      await db.updateStudent(student.id, {
+        name: modalFullName,
+        nationalId: modalNationalId,
+        avatarUrl: modalAvatarBase64
+      });
+
+      // 2. Update local state
+      const updatedStudent = {
+        ...student,
+        name: modalFullName,
+        nationalId: modalNationalId,
+        avatarUrl: modalAvatarBase64
+      };
+      setStudent(updatedStudent);
+      setAvatarPreview(modalAvatarBase64);
+      localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(updatedStudent));
+
+      // Update studentRecords locally
+      setStudentRecords(prev => prev.map(r => r.phone === student.phone ? {
+        ...r,
+        name: modalFullName,
+        nationalId: modalNationalId,
+        avatarUrl: modalAvatarBase64
+      } : r));
+
+      // 3. Submit the application for the pending course
+      await db.addApplication(params.tenant, {
+        fullName: modalFullName,
+        nationalId: modalNationalId,
+        phone: student.phone,
+        courseId: pendingCourseToSubscribe.id,
+        photoUrl: modalAvatarBase64
+      });
+
+      // Refresh applications list
+      const apps = await db.getApplicationsByPhone(params.tenant, student.phone);
+      setMyApplications(apps);
+
+      alert(`🎉 تم تحديث بياناتك بنجاح، وتم إرسال طلب الاشتراك في دورة "${pendingCourseToSubscribe.title}" وهو قيد المراجعة!`);
+      setShowCompletionModal(false);
+      setPendingCourseToSubscribe(null);
+    } catch (err: any) {
+      setModalError(`⚠️ فشل التحديث أو الاشتراك: ${err.message || err}`);
+    } finally {
+      setModalSaving(false);
     }
   };
 
@@ -405,6 +532,178 @@ export default function TenantStudentPortal({
           </div>
 
         </div>
+
+        {/* Profile Completion Modal */}
+        {showCompletionModal && pendingCourseToSubscribe && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
+              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white mb-2">إكمال البيانات المطلوبة للاشتراك</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 font-medium">
+                الدورة التي اخترتها <strong>({pendingCourseToSubscribe.title})</strong> هي دورة مدفوعة، ويتطلب تفعيل الاشتراك فيها مراجعة هويتك وصورتك الشخصية للشهادة. يرجى كتابة البيانات بشكل صحيح وصادق:
+              </p>
+
+              <form onSubmit={handleSaveAndSubscribe} className="space-y-4">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    الاسم رباعياً بالكامل (لشهادة الكورس):
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="محمد احمد محمود علي"
+                    value={modalFullName}
+                    onChange={(e) => setModalFullName(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+
+                {/* Doc Type selection */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    نوع وثيقة إثبات الشخصية:
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalDocType("egypt");
+                        setModalNationalId("");
+                      }}
+                      className={`py-2 px-1 rounded-lg text-[10px] sm:text-xs font-bold border transition-all ${
+                        modalDocType === "egypt"
+                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                          : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      رقم قومي (مصر)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalDocType("passport");
+                        setModalNationalId("");
+                      }}
+                      className={`py-2 px-1 rounded-lg text-[10px] sm:text-xs font-bold border transition-all ${
+                        modalDocType === "passport"
+                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                          : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      جواز سفر (دولي)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalDocType("other");
+                        setModalNationalId("");
+                      }}
+                      className={`py-2 px-1 rounded-lg text-[10px] sm:text-xs font-bold border transition-all ${
+                        modalDocType === "other"
+                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                          : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      هوية وطنية أخرى
+                    </button>
+                  </div>
+                </div>
+
+                {/* Doc Number Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    {modalDocType === "egypt"
+                      ? "الرقم القومي (14 رقم):"
+                      : modalDocType === "passport"
+                      ? "رقم جواز السفر:"
+                      : "رقم الهوية الوطنية / الإقامة:"}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={modalDocType === "egypt" ? 14 : 20}
+                    placeholder={
+                      modalDocType === "egypt"
+                        ? "29910203040506"
+                        : modalDocType === "passport"
+                        ? "A12345678"
+                        : "1020304050"
+                    }
+                    value={modalNationalId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (modalDocType === "egypt") {
+                        setModalNationalId(val.replace(/\D/g, ""));
+                      } else {
+                        setModalNationalId(val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
+                      }
+                    }}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
+                    dir="ltr"
+                  />
+                </div>
+
+                {/* Photo Uploader */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    الصورة الشخصية (مطلوبة للشهادة):
+                  </label>
+                  <div className="flex items-center gap-3">
+                    {modalAvatarBase64 && (
+                      <img src={modalAvatarBase64} alt="Avatar Preview" className="w-12 h-12 rounded-xl object-cover border bg-white dark:bg-slate-900 p-0.5" />
+                    )}
+                    <label className="flex-1 cursor-pointer bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-755 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center gap-2 transition-all">
+                      <Upload size={16} />
+                      <span>{modalAvatarBase64 ? "تغيير صورتك" : "اختر صورتك الشخصية"}</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setModalAvatarFileName(file.name);
+                            const reader = new FileReader();
+                            reader.onloadend = async () => {
+                              const rawBase64 = reader.result as string;
+                              const compressed = await compressBase64(rawBase64);
+                              setModalAvatarBase64(compressed);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {modalError && (
+                  <p className="text-red-500 text-xs font-bold leading-relaxed">{modalError}</p>
+                )}
+
+                <div className="flex gap-3 pt-3">
+                  <button
+                    type="submit"
+                    disabled={modalSaving}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {modalSaving ? "جاري الحفظ والتسجيل..." : "تأكيد البيانات والاشتراك 🚀"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCompletionModal(false);
+                      setPendingCourseToSubscribe(null);
+                    }}
+                    className="px-5 bg-slate-100 dark:bg-slate-750 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-bold transition-all text-sm"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
     );

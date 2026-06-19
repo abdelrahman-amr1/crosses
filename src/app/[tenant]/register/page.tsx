@@ -16,6 +16,7 @@ export default function StudentRegistration({
   
   // Form states
   const [fullName, setFullName] = useState("");
+  const [docType, setDocType] = useState<"egypt" | "passport" | "other">("egypt");
   const [nationalId, setNationalId] = useState("");
   const [phone, setPhone] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
@@ -64,9 +65,25 @@ export default function StudentRegistration({
     const selectedCourse = courses.find((c) => c.id === selectedCourseId);
     const isFree = Number(selectedCourse?.price) === 0;
 
-    if (!isFree) {
+    // Validate Document number is not all zeros or similar placeholder
+    if (/^0+$/.test(nationalId) || nationalId.length < 5) {
+      setErrorMsg("⚠️ يرجى إدخال رقم إثبات شخصية صحيح (لا يمكن أن يكون كله أصفار).");
+      return;
+    }
+
+    if (docType === "egypt") {
       if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
-        setErrorMsg("⚠️ الرقم القومي يجب أن يتكون من 14 رقماً صحيحاً.");
+        setErrorMsg("⚠️ الرقم القومي المصري يجب أن يتكون من 14 رقماً صحيحاً.");
+        return;
+      }
+    } else if (docType === "passport") {
+      if (nationalId.length < 5 || nationalId.length > 20) {
+        setErrorMsg("⚠️ رقم جواز السفر يجب أن يكون بين 5 إلى 20 خانة.");
+        return;
+      }
+    } else {
+      if (nationalId.length < 6 || nationalId.length > 20) {
+        setErrorMsg("⚠️ رقم الهوية الوطنية يجب أن يكون بين 6 إلى 20 خانة.");
         return;
       }
     }
@@ -83,9 +100,34 @@ export default function StudentRegistration({
 
     setIsLoading(true);
     try {
+      // Fetch all students and applications to verify uniqueness
+      const [existingStudents, existingApps] = await Promise.all([
+        db.getStudents(params.tenant),
+        db.getApplications(params.tenant)
+      ]);
+
+      // Check duplicate phone
+      const phoneExists = existingStudents.some(s => s.phone === phone) ||
+                          existingApps.some(a => a.phone === phone && a.status !== "rejected");
+      if (phoneExists) {
+        setErrorMsg("⚠️ رقم الهاتف هذا مسجل بالفعل كطالب أو لديه طلب اشتراك. يرجى تسجيل الدخول مباشرة برقم هاتفك من الصفحة الرئيسية.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Check duplicate nationalId
+      const idExists = existingStudents.some(s => s.nationalId === nationalId) ||
+                       existingApps.some(a => a.nationalId === nationalId && a.status !== "rejected");
+      if (idExists) {
+        setErrorMsg("⚠️ رقم إثبات الشخصية هذا (الرقم القومي / جواز السفر) مسجل بالفعل لطالب آخر. يرجى التأكد من كتابة بياناتك بشكل صحيح.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Add application
       await db.addApplication(params.tenant, {
         fullName,
-        nationalId: isFree ? "00000000000000" : nationalId,
+        nationalId,
         phone,
         courseId: selectedCourseId,
         photoUrl: photoBase64
@@ -160,24 +202,91 @@ export default function StudentRegistration({
             />
           </div>
 
-          {/* National ID */}
-          {!isFree && (
-            <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-                <FileText size={16} className="text-blue-500" /> الرقم القومي (14 رقم):
-              </label>
-              <input
-                type="text"
-                required
-                maxLength={14}
-                placeholder="29910203040506"
-                value={nationalId}
-                onChange={(e) => setNationalId(e.target.value.replace(/\D/g, ""))}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
-                dir="ltr"
-              />
+          {/* Document Type Selection */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <FileText size={16} className="text-blue-500" /> نوع وثيقة إثبات الشخصية:
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDocType("egypt");
+                  setNationalId("");
+                }}
+                className={`py-2.5 px-1 rounded-xl text-[10px] sm:text-xs font-bold border transition-all ${
+                  docType === "egypt"
+                    ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                رقم قومي (مصر)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDocType("passport");
+                  setNationalId("");
+                }}
+                className={`py-2.5 px-1 rounded-xl text-[10px] sm:text-xs font-bold border transition-all ${
+                  docType === "passport"
+                    ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                جواز سفر (دولي)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDocType("other");
+                  setNationalId("");
+                }}
+                className={`py-2.5 px-1 rounded-xl text-[10px] sm:text-xs font-bold border transition-all ${
+                  docType === "other"
+                    ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                هوية وطنية أخرى
+              </button>
             </div>
-          )}
+          </div>
+
+          {/* National ID / Document Number */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <FileText size={16} className="text-blue-500" />{" "}
+              {docType === "egypt"
+                ? "الرقم القومي (14 رقم):"
+                : docType === "passport"
+                ? "رقم جواز السفر:"
+                : "رقم الهوية الوطنية / الإقامة:"}
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={docType === "egypt" ? 14 : 20}
+              placeholder={
+                docType === "egypt"
+                  ? "29910203040506"
+                  : docType === "passport"
+                  ? "A12345678"
+                  : "1020304050"
+              }
+              value={nationalId}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (docType === "egypt") {
+                  setNationalId(val.replace(/\D/g, ""));
+                } else {
+                  setNationalId(val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
+                }
+              }}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
+              dir="ltr"
+            />
+          </div>
 
           {/* WhatsApp Mobile */}
           <div>
