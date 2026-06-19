@@ -217,9 +217,15 @@ export default function StudentRegistration({
               const selectedCourse = courses.find(c => c.id === selectedCourseId)!;
               return (
                 <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row gap-4 items-center">
-                  <div className="w-full sm:w-28 h-20 rounded-xl overflow-hidden relative bg-gradient-to-br from-blue-400 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white">
+                  <div className="w-full sm:w-28 h-20 rounded-xl overflow-hidden relative bg-gradient-to-br from-blue-400 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white bg-slate-950">
                     {selectedCourse.coverImage ? (
-                      <img src={selectedCourse.coverImage} alt={selectedCourse.title} className="w-full h-full object-cover" />
+                      <img 
+                        src={selectedCourse.coverImage} 
+                        alt={selectedCourse.title} 
+                        className={`w-full h-full ${
+                          selectedCourse.imageFit === 'contain' ? 'object-contain' : 'object-cover'
+                        }`} 
+                      />
                     ) : (
                       <ClipboardList size={28} className="opacity-80" />
                     )}

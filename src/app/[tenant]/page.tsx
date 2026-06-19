@@ -249,9 +249,15 @@ export default function TenantStudentPortal({
                       key={c.id}
                       className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-md hover:shadow-xl hover:shadow-blue-500/5 hover:-translate-y-1.5 transition-all duration-300 flex flex-col group"
                     >
-                      <div className="h-44 relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                      <div className="h-44 relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden bg-slate-950">
                         {c.coverImage ? (
-                          <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img 
+                            src={c.coverImage} 
+                            alt={c.title} 
+                            className={`w-full h-full group-hover:scale-105 transition-transform duration-500 ${
+                              c.imageFit === 'contain' ? 'object-contain' : 'object-cover'
+                            }`} 
+                          />
                         ) : (
                           <div className="text-center p-6">
                             <BookOpen size={44} className="mx-auto mb-2 opacity-80" />
@@ -307,9 +313,15 @@ export default function TenantStudentPortal({
                           key={c.id}
                           className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-md hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1.5 transition-all duration-300 flex flex-col group"
                         >
-                          <div className="h-44 relative bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white overflow-hidden">
+                          <div className="h-44 relative bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white overflow-hidden bg-slate-950">
                             {c.coverImage ? (
-                              <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter grayscale-[15%] group-hover:grayscale-0" />
+                              <img 
+                                src={c.coverImage} 
+                                alt={c.title} 
+                                className={`w-full h-full group-hover:scale-105 transition-transform duration-500 filter grayscale-[15%] group-hover:grayscale-0 ${
+                                  c.imageFit === 'contain' ? 'object-contain' : 'object-cover'
+                                }`} 
+                              />
                             ) : (
                               <div className="text-center p-6">
                                 <BookOpen size={44} className="mx-auto mb-2 opacity-80" />

@@ -79,6 +79,7 @@ export interface Course {
   price: number;
   currency?: string;
   coverImage?: string;
+  imageFit?: 'cover' | 'contain';
   lectureUrl: string; // رابط المحاضرة القابل للتعديل
   whatsappGroupUrl: string; // رابط جروب الواتساب للدورة
   isAttendanceOpen: boolean;
@@ -235,6 +236,7 @@ export const db = {
         c.price, 
         COALESCE(c.currency, 'ج.م') as "currency",
         c.cover_image as "coverImage", 
+        COALESCE(c.image_fit, 'cover') as "imageFit",
         c.lecture_url as "lectureUrl", 
         c.whatsapp_group_url as "whatsappGroupUrl",
         COALESCE(c.is_attendance_open, true) as "isAttendanceOpen",
@@ -261,8 +263,8 @@ export const db = {
     for (const c of courses) {
       courseIds.push(c.id);
       await runQuery(`
-        INSERT INTO courses (id, institution_id, title, description, price, currency, lectures_count, cover_image, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open, lecture_controls)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        INSERT INTO courses (id, institution_id, title, description, price, currency, lectures_count, cover_image, image_fit, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open, lecture_controls)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
@@ -270,6 +272,7 @@ export const db = {
           currency = EXCLUDED.currency,
           lectures_count = EXCLUDED.lectures_count,
           cover_image = EXCLUDED.cover_image,
+          image_fit = EXCLUDED.image_fit,
           lecture_url = EXCLUDED.lecture_url,
           whatsapp_group_url = EXCLUDED.whatsapp_group_url,
           is_attendance_open = EXCLUDED.is_attendance_open,
@@ -278,7 +281,7 @@ export const db = {
           is_evaluation_open = EXCLUDED.is_evaluation_open,
           lecture_controls = EXCLUDED.lecture_controls;
       `, [
-        c.id, instId, c.title, c.description, c.price, c.currency || 'ج.م', c.lecturesCount, c.coverImage || null, c.lectureUrl, c.whatsappGroupUrl,
+        c.id, instId, c.title, c.description, c.price, c.currency || 'ج.م', c.lecturesCount, c.coverImage || null, c.imageFit || 'cover', c.lectureUrl, c.whatsappGroupUrl,
         c.isAttendanceOpen !== false, c.isFlashcardsOpen !== false, c.isQuizOpen !== false, c.isEvaluationOpen !== false,
         c.lectureControls ? JSON.stringify(c.lectureControls) : '{}'
       ]);

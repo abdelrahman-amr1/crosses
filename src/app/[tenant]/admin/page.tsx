@@ -97,10 +97,10 @@ export default function TenantAdminDashboard({
   const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
   
   // Course edit & addition forms
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", lecturesCount: 12, coverImage: "" });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "" });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingCourseData, setEditingCourseData] = useState({ 
-    title: "", description: "", price: 0, currency: "ج.م", lecturesCount: 1, 
+    title: "", description: "", price: 0, currency: "ج.م", imageFit: "cover", lecturesCount: 1, 
     coverImage: "", lectureUrl: "", whatsappGroupUrl: "",
     isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true,
     lectureControls: {} as Record<number, LectureControl>
@@ -471,6 +471,7 @@ export default function TenantAdminDashboard({
         description: newCourse.description,
         price: Number(newCourse.price),
         currency: newCourse.currency || "ج.م",
+        imageFit: (newCourse.imageFit as 'cover' | 'contain') || "cover",
         lecturesCount: Number(newCourse.lecturesCount),
         lectureUrl: "https://meet.google.com/abc-defg-hij",
         whatsappGroupUrl: "https://chat.whatsapp.com/G1x2y3z4",
@@ -485,7 +486,7 @@ export default function TenantAdminDashboard({
       const updated = [...courses, courseObj];
       setCourses(updated);
       await db.saveCourses(params.tenant, updated);
-      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", lecturesCount: 12, coverImage: "" });
+      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "" });
       showAlert(`✅ تم إضافة الدورة التعليمية "${courseObj.title}" بنجاح.`);
     }
   };
@@ -497,6 +498,7 @@ export default function TenantAdminDashboard({
       description: course.description,
       price: course.price,
       currency: course.currency || "ج.م",
+      imageFit: course.imageFit || "cover",
       lecturesCount: course.lecturesCount,
       lectureUrl: course.lectureUrl,
       whatsappGroupUrl: course.whatsappGroupUrl,
@@ -520,6 +522,7 @@ export default function TenantAdminDashboard({
               description: editingCourseData.description,
               price: Number(editingCourseData.price),
               currency: editingCourseData.currency || "ج.م",
+              imageFit: (editingCourseData.imageFit as 'cover' | 'contain') || "cover",
               lecturesCount: Number(editingCourseData.lecturesCount),
               lectureUrl: editingCourseData.lectureUrl, 
               whatsappGroupUrl: editingCourseData.whatsappGroupUrl,
@@ -1471,9 +1474,15 @@ export default function TenantAdminDashboard({
                   return (
                     <div key={c.id} className="bg-slate-50 dark:bg-slate-900 border border-slate-105 dark:border-slate-800 rounded-2xl overflow-hidden relative flex flex-col justify-between">
                       {/* Course Cover Image */}
-                      <div className="h-36 w-full relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                      <div className="h-36 w-full relative bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white overflow-hidden bg-slate-950">
                         {c.coverImage ? (
-                          <img src={c.coverImage} alt={c.title} className="w-full h-full object-cover" />
+                          <img 
+                            src={c.coverImage} 
+                            alt={c.title} 
+                            className={`w-full h-full ${
+                              c.imageFit === 'contain' ? 'object-contain' : 'object-cover'
+                            }`} 
+                          />
                         ) : (
                           <BookOpen size={36} className="opacity-85" />
                         )}
@@ -1560,7 +1569,13 @@ export default function TenantAdminDashboard({
                                 <label className="block text-[10px] font-bold text-slate-400 mb-1">صورة غلاف الدورة:</label>
                                 <div className="flex items-center gap-2">
                                   {editingCourseData.coverImage && (
-                                    <img src={editingCourseData.coverImage} alt="Preview" className="w-10 h-10 rounded object-cover border" />
+                                    <img 
+                                      src={editingCourseData.coverImage} 
+                                      alt="Preview" 
+                                      className={`w-10 h-10 rounded border ${
+                                        editingCourseData.imageFit === 'contain' ? 'object-contain bg-slate-950 p-0.5' : 'object-cover'
+                                      }`} 
+                                    />
                                   )}
                                   <label className="flex-1 cursor-pointer bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 text-center py-1.5 rounded text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                     <span>رفع صورة جديدة</span>
@@ -1573,7 +1588,7 @@ export default function TenantAdminDashboard({
                                           const reader = new FileReader();
                                           reader.onload = async (event) => {
                                             const base64 = event.target?.result as string;
-                                            const compressed = await compressBase64(base64, 400, 250, 0.7);
+                                            const compressed = await compressBase64(base64, 800, 500, 0.85);
                                             setEditingCourseData(prev => ({ ...prev, coverImage: compressed }));
                                           };
                                           reader.readAsDataURL(file);
@@ -1582,6 +1597,33 @@ export default function TenantAdminDashboard({
                                       className="hidden" 
                                     />
                                   </label>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">طريقة عرض الصورة (الاطار):</label>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCourseData(prev => ({ ...prev, imageFit: 'cover' }))}
+                                    className={`flex-1 py-1.5 rounded text-[10px] font-bold border transition-all ${
+                                      (editingCourseData.imageFit || 'cover') === 'cover'
+                                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}
+                                  >
+                                    ملء الإطار (Cover)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCourseData(prev => ({ ...prev, imageFit: 'contain' }))}
+                                    className={`flex-1 py-1.5 rounded text-[10px] font-bold border transition-all ${
+                                      editingCourseData.imageFit === 'contain'
+                                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}
+                                  >
+                                    احتواء كامل (Contain)
+                                  </button>
                                 </div>
                               </div>
                               <div>
@@ -1801,7 +1843,13 @@ export default function TenantAdminDashboard({
                   <label className="block text-xs font-bold mb-2">صورة غلاف الدورة</label>
                   <div className="flex items-center gap-3">
                     {newCourse.coverImage && (
-                      <img src={newCourse.coverImage} alt="Cover Preview" className="w-12 h-12 rounded-xl object-cover border bg-white dark:bg-slate-900 p-0.5" />
+                      <img 
+                        src={newCourse.coverImage} 
+                        alt="Cover Preview" 
+                        className={`w-12 h-12 rounded-xl border bg-white dark:bg-slate-900 p-0.5 ${
+                          newCourse.imageFit === 'contain' ? 'object-contain bg-slate-950' : 'object-cover'
+                        }`} 
+                      />
                     )}
                     <label className="flex-1 cursor-pointer bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center gap-2 transition-all">
                       <Upload size={16} />
@@ -1815,7 +1863,7 @@ export default function TenantAdminDashboard({
                             const reader = new FileReader();
                             reader.onload = async (event) => {
                               const base64 = event.target?.result as string;
-                              const compressed = await compressBase64(base64, 400, 250, 0.7);
+                              const compressed = await compressBase64(base64, 800, 500, 0.85);
                               setNewCourse(prev => ({ ...prev, coverImage: compressed }));
                             };
                             reader.readAsDataURL(file);
@@ -1824,6 +1872,34 @@ export default function TenantAdminDashboard({
                         className="hidden" 
                       />
                     </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-2">طريقة عرض الصورة (الاطار)</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewCourse(prev => ({ ...prev, imageFit: 'cover' }))}
+                      className={`flex-1 py-3.5 rounded-xl text-xs font-bold border transition-all ${
+                        (newCourse.imageFit || 'cover') === 'cover'
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      ملء الإطار (Cover)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewCourse(prev => ({ ...prev, imageFit: 'contain' }))}
+                      className={`flex-1 py-3.5 rounded-xl text-xs font-bold border transition-all ${
+                        newCourse.imageFit === 'contain'
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      احتواء كامل (Contain)
+                    </button>
                   </div>
                 </div>
 
