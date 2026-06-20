@@ -133,7 +133,7 @@ async function runQuery(query: string, values?: any[]) {
   } else {
     // Server-side direct pg Pool query
     const { Pool } = await import("pg");
-    const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:5432/postgres";
+    const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
     const globalAny = globalThis as any;
     if (!globalAny.dbPool) {
       globalAny.dbPool = new Pool({
@@ -141,7 +141,7 @@ async function runQuery(query: string, values?: any[]) {
         ssl: {
           rejectUnauthorized: false
         },
-        max: 5,
+        max: 2,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000
       });

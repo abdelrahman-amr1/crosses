@@ -5,13 +5,13 @@ let pool: Pool | null = null;
 
 function getPool() {
   if (!pool) {
-    const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:5432/postgres";
+    const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
     pool = new Pool({
       connectionString,
       ssl: {
         rejectUnauthorized: false
       },
-      max: 10,
+      max: 3,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000
     });
