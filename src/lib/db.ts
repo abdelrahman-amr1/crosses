@@ -86,6 +86,7 @@ export interface Course {
   isFlashcardsOpen: boolean;
   isQuizOpen: boolean;
   isEvaluationOpen: boolean;
+  isRegistrationOpen: boolean;
   lectureControls?: Record<number, LectureControl>;
 }
 
@@ -243,6 +244,7 @@ export const db = {
         COALESCE(c.is_flashcards_open, true) as "isFlashcardsOpen",
         COALESCE(c.is_quiz_open, true) as "isQuizOpen",
         COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen",
+        COALESCE(c.is_registration_open, true) as "isRegistrationOpen",
         c.lecture_controls as "lectureControls"
       FROM courses c
       JOIN institutions i ON c.institution_id = i.id
@@ -263,8 +265,8 @@ export const db = {
     for (const c of courses) {
       courseIds.push(c.id);
       await runQuery(`
-        INSERT INTO courses (id, institution_id, title, description, price, currency, lectures_count, cover_image, image_fit, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open, lecture_controls)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        INSERT INTO courses (id, institution_id, title, description, price, currency, lectures_count, cover_image, image_fit, lecture_url, whatsapp_group_url, is_attendance_open, is_flashcards_open, is_quiz_open, is_evaluation_open, is_registration_open, lecture_controls)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
@@ -279,10 +281,11 @@ export const db = {
           is_flashcards_open = EXCLUDED.is_flashcards_open,
           is_quiz_open = EXCLUDED.is_quiz_open,
           is_evaluation_open = EXCLUDED.is_evaluation_open,
+          is_registration_open = EXCLUDED.is_registration_open,
           lecture_controls = EXCLUDED.lecture_controls;
       `, [
         c.id, instId, c.title, c.description, c.price, c.currency || 'ج.م', c.lecturesCount, c.coverImage || null, c.imageFit || 'cover', c.lectureUrl, c.whatsappGroupUrl,
-        c.isAttendanceOpen !== false, c.isFlashcardsOpen !== false, c.isQuizOpen !== false, c.isEvaluationOpen !== false,
+        c.isAttendanceOpen !== false, c.isFlashcardsOpen !== false, c.isQuizOpen !== false, c.isEvaluationOpen !== false, c.isRegistrationOpen !== false,
         c.lectureControls ? JSON.stringify(c.lectureControls) : '{}'
       ]);
     }

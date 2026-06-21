@@ -438,7 +438,7 @@ export default function TenantStudentPortal({
 
             {/* Other Available Courses */}
             {(() => {
-              const otherCourses = courses.filter(c => !studentRecords.some(r => r.courseId === c.id));
+              const otherCourses = courses.filter(c => !studentRecords.some(r => r.courseId === c.id) && c.isRegistrationOpen !== false);
               if (otherCourses.length === 0) return null;
               return (
                 <div className="space-y-6 pt-8 border-t border-slate-200/80 dark:border-slate-700/80">

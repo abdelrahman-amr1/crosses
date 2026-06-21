@@ -97,12 +97,13 @@ export default function TenantAdminDashboard({
   const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
   
   // Course edit & addition forms
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "" });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "", isRegistrationOpen: true });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingCourseData, setEditingCourseData] = useState({ 
     title: "", description: "", price: 0, currency: "ج.م", imageFit: "cover", lecturesCount: 1, 
     coverImage: "", lectureUrl: "", whatsappGroupUrl: "",
     isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true,
+    isRegistrationOpen: true,
     lectureControls: {} as Record<number, LectureControl>
   });
   const [editingLectureNum, setEditingLectureNum] = useState<number>(1);
@@ -515,13 +516,14 @@ export default function TenantAdminDashboard({
         isFlashcardsOpen: true,
         isQuizOpen: true,
         isEvaluationOpen: true,
+        isRegistrationOpen: newCourse.isRegistrationOpen !== false,
         lectureControls: {}
       };
 
       const updated = [...courses, courseObj];
       setCourses(updated);
       await db.saveCourses(params.tenant, updated);
-      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "" });
+      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "", isRegistrationOpen: true });
       showAlert(`✅ تم إضافة الدورة التعليمية "${courseObj.title}" بنجاح.`);
     }
   };
@@ -542,6 +544,7 @@ export default function TenantAdminDashboard({
       isFlashcardsOpen: course.isFlashcardsOpen !== false,
       isQuizOpen: course.isQuizOpen !== false,
       isEvaluationOpen: course.isEvaluationOpen !== false,
+      isRegistrationOpen: course.isRegistrationOpen !== false,
       lectureControls: course.lectureControls || {}
     });
     setEditingLectureNum(1);
@@ -566,6 +569,7 @@ export default function TenantAdminDashboard({
               isFlashcardsOpen: editingCourseData.isFlashcardsOpen,
               isQuizOpen: editingCourseData.isQuizOpen,
               isEvaluationOpen: editingCourseData.isEvaluationOpen,
+              isRegistrationOpen: editingCourseData.isRegistrationOpen,
               lectureControls: editingCourseData.lectureControls
             } 
           : c
@@ -1521,6 +1525,16 @@ export default function TenantAdminDashboard({
                         ) : (
                           <BookOpen size={36} className="opacity-85" />
                         )}
+                        {/* Registration Status Badge */}
+                        {c.isRegistrationOpen === false ? (
+                          <span className="absolute top-3 right-3 bg-red-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md">
+                            🚫 التسجيل مغلق
+                          </span>
+                        ) : (
+                          <span className="absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md">
+                            ✅ التسجيل مفتوح
+                          </span>
+                        )}
                       </div>
                       
                       <div className="p-6 flex-grow flex flex-col justify-between">
@@ -1654,12 +1668,24 @@ export default function TenantAdminDashboard({
                                     className={`flex-1 py-1.5 rounded text-[10px] font-bold border transition-all ${
                                       editingCourseData.imageFit === 'contain'
                                         ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-880 text-slate-600 dark:text-slate-400'
                                     }`}
                                   >
                                     احتواء كامل (Contain)
                                   </button>
                                 </div>
+                              </div>
+                              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-250 dark:border-slate-750">
+                                <span className="text-[10px] font-bold text-slate-500">حالة التسجيل والاشتراك (مفتوح):</span>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={editingCourseData.isRegistrationOpen} 
+                                    onChange={(e) => setEditingCourseData({ ...editingCourseData, isRegistrationOpen: e.target.checked })} 
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-8 h-4.5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all dark:border-slate-650 peer-checked:bg-blue-600"></div>
+                                </label>
                               </div>
                               <div>
                                 <label className="block text-[10px] font-bold text-slate-400 mb-1">رابط بث المحاضرة الحالي (Zoom/Meet/etc):</label>
@@ -1936,6 +1962,19 @@ export default function TenantAdminDashboard({
                       احتواء كامل (Contain)
                     </button>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-xs font-bold text-slate-500">إتاحة التسجيل في الدورة حالياً</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={newCourse.isRegistrationOpen} 
+                      onChange={(e) => setNewCourse({ ...newCourse, isRegistrationOpen: e.target.checked })} 
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-650 peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 <button

@@ -29,9 +29,10 @@ export default function StudentRegistration({
 
   useEffect(() => {
     db.getCourses(params.tenant).then(list => {
-      setCourses(list);
-      if (list.length > 0) {
-        setSelectedCourseId(list[0].id);
+      const openCourses = list.filter(c => c.isRegistrationOpen !== false);
+      setCourses(openCourses);
+      if (openCourses.length > 0) {
+        setSelectedCourseId(openCourses[0].id);
       }
     }).catch(console.error);
   }, [params.tenant]);
@@ -170,6 +171,28 @@ export default function StudentRegistration({
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-all"
           >
             الانتقال لصفحة دخول الطلاب
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (courses.length === 0) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center" dir="rtl">
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl flex flex-col items-center gap-4">
+          <div className="w-16 h-16 bg-amber-50 dark:bg-slate-900 text-amber-500 rounded-full flex items-center justify-center shadow-inner">
+            <ClipboardList size={32} />
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-800 dark:text-white">التسجيل مغلق حالياً</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed">
+            عذراً، لا توجد دورات تدريبية متاحة للتسجيل أو الاشتراك في الوقت الحالي. يرجى مراجعة إدارة المركز للمزيد من التفاصيل.
+          </p>
+          <button
+            onClick={() => router.push(`/${params.tenant}`)}
+            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl shadow-md transition-all text-sm"
+          >
+            العودة للصفحة الرئيسية
           </button>
         </div>
       </div>
