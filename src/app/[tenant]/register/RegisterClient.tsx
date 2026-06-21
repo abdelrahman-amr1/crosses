@@ -27,6 +27,8 @@ export default function StudentRegistration({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [loadingCourses, setLoadingCourses] = useState(true);
+
   useEffect(() => {
     db.getCourses(params.tenant).then(list => {
       const openCourses = list.filter(c => c.isRegistrationOpen !== false);
@@ -34,7 +36,11 @@ export default function StudentRegistration({
       if (openCourses.length > 0) {
         setSelectedCourseId(openCourses[0].id);
       }
-    }).catch(console.error);
+      setLoadingCourses(false);
+    }).catch(err => {
+      console.error(err);
+      setLoadingCourses(false);
+    });
   }, [params.tenant]);
 
   // Convert uploaded image to Base64 for local persistence
@@ -173,6 +179,14 @@ export default function StudentRegistration({
             الانتقال لصفحة دخول الطلاب
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (loadingCourses) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]" dir="rtl">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
       </div>
     );
   }
