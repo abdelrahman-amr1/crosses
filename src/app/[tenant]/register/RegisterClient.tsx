@@ -16,12 +16,8 @@ export default function StudentRegistration({
   
   // Form states
   const [fullName, setFullName] = useState("");
-  const [docType, setDocType] = useState<"egypt" | "passport" | "other">("egypt");
-  const [nationalId, setNationalId] = useState("");
   const [phone, setPhone] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
-  const [photoBase64, setPhotoBase64] = useState("");
-  const [photoFileName, setPhotoFileName] = useState("");
 
   const [errorMsg, setErrorMsg] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -43,21 +39,6 @@ export default function StudentRegistration({
     });
   }, [params.tenant]);
 
-  // Convert uploaded image to Base64 for local persistence
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const rawBase64 = reader.result as string;
-        const compressed = await compressBase64(rawBase64);
-        setPhotoBase64(compressed);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -69,41 +50,8 @@ export default function StudentRegistration({
       return;
     }
 
-    const selectedCourse = courses.find((c) => c.id === selectedCourseId);
-    const isFree = Number(selectedCourse?.price) === 0;
-
-    if (!isFree) {
-      // Validate Document number is not all zeros or similar placeholder
-      if (/^0+$/.test(nationalId) || nationalId.length < 5) {
-        setErrorMsg("⚠️ يرجى إدخال رقم إثبات شخصية صحيح (لا يمكن أن يكون كله أصفار).");
-        return;
-      }
-
-      if (docType === "egypt") {
-        if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
-          setErrorMsg("⚠️ الرقم القومي المصري يجب أن يتكون من 14 رقماً صحيحاً.");
-          return;
-        }
-      } else if (docType === "passport") {
-        if (nationalId.length < 5 || nationalId.length > 20) {
-          setErrorMsg("⚠️ رقم جواز السفر يجب أن يكون بين 5 إلى 20 خانة.");
-          return;
-        }
-      } else {
-        if (nationalId.length < 6 || nationalId.length > 20) {
-          setErrorMsg("⚠️ رقم الهوية الوطنية يجب أن يكون بين 6 إلى 20 خانة.");
-          return;
-        }
-      }
-    }
-
     if (phone.length < 10 || !/^\d+$/.test(phone)) {
       setErrorMsg("⚠️ رقم هاتف الواتساب غير صحيح.");
-      return;
-    }
-
-    if (!isFree && !photoBase64) {
-      setErrorMsg("⚠️ يرجى رفع صورتك الشخصية لإتمام التسجيل.");
       return;
     }
 
@@ -124,24 +72,13 @@ export default function StudentRegistration({
         return;
       }
 
-      // Check duplicate nationalId (only if not a free course and nationalId is provided)
-      if (!isFree && nationalId) {
-        const idExists = existingStudents.some(s => s.nationalId && s.nationalId === nationalId) ||
-                         existingApps.some(a => a.nationalId && a.nationalId === nationalId && a.status !== "rejected");
-        if (idExists) {
-          setErrorMsg("⚠️ رقم إثبات الشخصية هذا (الرقم القومي / جواز السفر) مسجل بالفعل لطالب آخر. يرجى التأكد من كتابة بياناتك بشكل صحيح.");
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Add application
+      // Add application with empty/null nationalId and photoUrl (to be filled on course entry)
       await db.addApplication(params.tenant, {
         fullName,
-        nationalId: isFree ? "" : nationalId,
+        nationalId: "",
         phone,
         courseId: selectedCourseId,
-        photoUrl: isFree ? "" : photoBase64
+        photoUrl: ""
       });
       setIsLoading(false);
       setIsSubmitted(true);
@@ -253,10 +190,6 @@ export default function StudentRegistration({
               onChange={(e) => {
                 const nextId = e.target.value;
                 setSelectedCourseId(nextId);
-                const nextCourse = courses.find(c => c.id === nextId);
-                if (nextCourse && Number(nextCourse.price) === 0) {
-                  setNationalId("");
-                }
               }}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
             >
@@ -299,97 +232,6 @@ export default function StudentRegistration({
             })()}
           </div>
 
-          {/* Document Verification fields (hidden for free courses) */}
-          {!isFree && (
-            <>
-              {/* Document Type Selection */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-                  <FileText size={16} className="text-blue-500" /> نوع وثيقة إثبات الشخصية:
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDocType("egypt");
-                      setNationalId("");
-                    }}
-                    className={`py-2.5 px-1 rounded-xl text-[10px] sm:text-xs font-bold border transition-all ${
-                      docType === "egypt"
-                        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    رقم قومي (مصر)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDocType("passport");
-                      setNationalId("");
-                    }}
-                    className={`py-2.5 px-1 rounded-xl text-[10px] sm:text-xs font-bold border transition-all ${
-                      docType === "passport"
-                        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    جواز سفر (دولي)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDocType("other");
-                      setNationalId("");
-                    }}
-                    className={`py-2.5 px-1 rounded-xl text-[10px] sm:text-xs font-bold border transition-all ${
-                      docType === "other"
-                        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    هوية وطنية أخرى
-                  </button>
-                </div>
-              </div>
-
-              {/* National ID / Document Number */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-                  <FileText size={16} className="text-blue-500" />{" "}
-                  {docType === "egypt"
-                    ? "الرقم القومي (14 رقم):"
-                    : docType === "passport"
-                    ? "رقم جواز السفر:"
-                    : "رقم الهوية الوطنية / الإقامة:"}
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={docType === "egypt" ? 14 : 20}
-                  placeholder={
-                    docType === "egypt"
-                      ? "29910203040506"
-                      : docType === "passport"
-                      ? "A12345678"
-                      : "1020304050"
-                  }
-                  value={nationalId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (docType === "egypt") {
-                      setNationalId(val.replace(/\D/g, ""));
-                    } else {
-                      setNationalId(val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
-                    }
-                  }}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
-                  dir="ltr"
-                />
-              </div>
-            </>
-          )}
-
           {/* WhatsApp Mobile */}
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
@@ -404,35 +246,6 @@ export default function StudentRegistration({
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-left"
               dir="ltr"
             />
-          </div>
-
-          {/* Photo Uploader */}
-          <div>
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-              <Upload size={16} className="text-blue-500" /> الصورة الشخصية للمتدرب {isFree ? "(اختياري)" : "(مطلوب للشهادة)"}:
-            </label>
-            
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 dark:border-slate-700 border-dashed rounded-2xl hover:border-blue-500 transition-all bg-slate-50 dark:bg-slate-900/50">
-              <div className="space-y-2 text-center flex flex-col items-center">
-                {photoBase64 ? (
-                  <div className="relative w-28 h-28 rounded-xl overflow-hidden border-2 border-blue-500 shadow-md">
-                    <img src={photoBase64} alt="Avatar Preview" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <Upload size={40} className="text-slate-400 mb-2" />
-                )}
-                
-                <div className="flex text-sm text-slate-600 dark:text-slate-400 font-bold">
-                  <label className="relative cursor-pointer bg-white dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-slate-200 dark:border-slate-700 hover:text-blue-500 transition-colors shadow-sm">
-                    <span>رفع ملف الصورة</span>
-                    <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                  </label>
-                </div>
-                <p className="text-xs text-slate-400">
-                  {photoFileName ? `تم تحديد: ${photoFileName}` : "تنسيقات الصور JPG, PNG حد أقصى 2MB"}
-                </p>
-              </div>
-            </div>
           </div>
 
           {errorMsg && (

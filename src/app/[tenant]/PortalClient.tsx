@@ -29,6 +29,7 @@ export default function TenantStudentPortal({
   // Profile Completion Modal states
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [pendingCourseToSubscribe, setPendingCourseToSubscribe] = useState<Course | null>(null);
+  const [courseToEnterAfterCompletion, setCourseToEnterAfterCompletion] = useState<Course | null>(null);
   const [modalDocType, setModalDocType] = useState<"egypt" | "passport" | "other">("egypt");
   const [modalNationalId, setModalNationalId] = useState("");
   const [modalAvatarBase64, setModalAvatarBase64] = useState("");
@@ -209,7 +210,8 @@ export default function TenantStudentPortal({
     e.preventDefault();
     setModalError("");
 
-    if (!student || !pendingCourseToSubscribe) return;
+    if (!student) return;
+    if (!pendingCourseToSubscribe && !courseToEnterAfterCompletion) return;
 
     const nameWords = modalFullName.trim().split(/\s+/);
     if (nameWords.length < 4) {
@@ -240,7 +242,7 @@ export default function TenantStudentPortal({
     }
 
     if (!modalAvatarBase64) {
-      setModalError("⚠️ يرجى رفع صورتك الشخصية لإتمام الاشتراك.");
+      setModalError("⚠️ يرجى رفع صورتك الشخصية لإتمام العملية.");
       return;
     }
 
@@ -281,30 +283,63 @@ export default function TenantStudentPortal({
         avatarUrl: modalAvatarBase64
       } : r));
 
-      // 3. Submit the application for the pending course
-      await db.addApplication(params.tenant, {
-        fullName: modalFullName,
-        nationalId: modalNationalId,
-        phone: student.phone,
-        courseId: pendingCourseToSubscribe.id,
-        photoUrl: modalAvatarBase64
-      });
+      if (pendingCourseToSubscribe) {
+        // 3. Submit the application for the pending course
+        await db.addApplication(params.tenant, {
+          fullName: modalFullName,
+          nationalId: modalNationalId,
+          phone: student.phone,
+          courseId: pendingCourseToSubscribe.id,
+          photoUrl: modalAvatarBase64
+        });
 
-      // Refresh applications list
-      const apps = await db.getApplicationsByPhone(params.tenant, student.phone);
-      setMyApplications(apps);
+        // Refresh applications list
+        const apps = await db.getApplicationsByPhone(params.tenant, student.phone);
+        setMyApplications(apps);
 
-      alert(`🎉 تم تحديث بياناتك بنجاح، وتم إرسال طلب الاشتراك في دورة "${pendingCourseToSubscribe.title}" وهو قيد المراجعة!`);
+        alert(`🎉 تم تحديث بياناتك بنجاح، وتم إرسال طلب الاشتراك في دورة "${pendingCourseToSubscribe.title}" وهو قيد المراجعة!`);
+      } else if (courseToEnterAfterCompletion) {
+        // If they were trying to enter a course, enter it now
+        try {
+          const latestCourses = await db.getCourses(params.tenant);
+          const syncedCourse = latestCourses.find(c => c.id === courseToEnterAfterCompletion.id) || courseToEnterAfterCompletion;
+          setSelectedCourse(syncedCourse);
+        } catch (e) {
+          setSelectedCourse(courseToEnterAfterCompletion);
+        }
+        alert(`🎉 تم تحديث بياناتك بنجاح، ودخول الكورس مفعل الآن!`);
+      }
+
       setShowCompletionModal(false);
       setPendingCourseToSubscribe(null);
+      setCourseToEnterAfterCompletion(null);
     } catch (err: any) {
-      setModalError(`⚠️ فشل التحديث أو الاشتراك: ${err.message || err}`);
+      setModalError(`⚠️ فشل التحديث: ${err.message || err}`);
     } finally {
       setModalSaving(false);
     }
   };
 
   const handleSelectCourse = async (course: Course) => {
+    if (!student) return;
+
+    // Check if profile is incomplete (missing national ID or photo)
+    const isIdIncomplete = !student.nationalId || student.nationalId === "00000000000000" || /^0+$/.test(student.nationalId) || student.nationalId.length < 5;
+    const isPhotoIncomplete = !student.avatarUrl;
+
+    if (isIdIncomplete || isPhotoIncomplete) {
+      setPendingCourseToSubscribe(null);
+      setCourseToEnterAfterCompletion(course);
+      
+      setModalFullName(student.name);
+      setModalNationalId(isIdIncomplete ? "" : student.nationalId);
+      setModalAvatarBase64(student.avatarUrl || "");
+      setModalDocType(student.nationalId?.length === 14 ? "egypt" : "passport");
+      setModalError("");
+      setShowCompletionModal(true);
+      return;
+    }
+
     try {
       const latestCourses = await db.getCourses(params.tenant);
       const syncedCourse = latestCourses.find(c => c.id === course.id) || course;
@@ -534,12 +569,22 @@ export default function TenantStudentPortal({
         </div>
 
         {/* Profile Completion Modal */}
-        {showCompletionModal && pendingCourseToSubscribe && (
+        {showCompletionModal && (pendingCourseToSubscribe || courseToEnterAfterCompletion) && (
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
-              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white mb-2">إكمال البيانات المطلوبة للاشتراك</h3>
+              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white mb-2">
+                {pendingCourseToSubscribe ? "إكمال البيانات المطلوبة للاشتراك" : "🔒 إكمال البيانات المطلوبة لدخول المحاضرات"}
+              </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 font-medium">
-                الدورة التي اخترتها <strong>({pendingCourseToSubscribe.title})</strong> هي دورة مدفوعة، ويتطلب تفعيل الاشتراك فيها مراجعة هويتك وصورتك الشخصية للشهادة. يرجى كتابة البيانات بشكل صحيح وصادق:
+                {pendingCourseToSubscribe ? (
+                  <>
+                    الدورة التي اخترتها <strong>({pendingCourseToSubscribe.title})</strong> هي دورة مدفوعة، ويتطلب تفعيل الاشتراك فيها مراجعة هويتك وصورتك الشخصية للشهادة. يرجى كتابة البيانات بشكل صحيح وصادق:
+                  </>
+                ) : (
+                  <>
+                    يتطلب دخول كورس <strong>({courseToEnterAfterCompletion?.title})</strong> وتسجيل حضور محاضراته توثيق هويتك وصورتك الشخصية للشهادة والمتابعة. يرجى إدخال البيانات التالية بدقة:
+                  </>
+                )}
               </p>
 
               <form onSubmit={handleSaveAndSubscribe} className="space-y-4">
@@ -687,13 +732,14 @@ export default function TenantStudentPortal({
                     disabled={modalSaving}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2 text-sm"
                   >
-                    {modalSaving ? "جاري الحفظ والتسجيل..." : "تأكيد البيانات والاشتراك 🚀"}
+                    {modalSaving ? "جاري الحفظ والتفعيل..." : pendingCourseToSubscribe ? "تأكيد البيانات والاشتراك 🚀" : "تأكيد البيانات ودخول الكورس 🚀"}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setShowCompletionModal(false);
                       setPendingCourseToSubscribe(null);
+                      setCourseToEnterAfterCompletion(null);
                     }}
                     className="px-5 bg-slate-100 dark:bg-slate-750 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-bold transition-all text-sm"
                   >
