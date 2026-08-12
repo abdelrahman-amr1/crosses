@@ -97,7 +97,7 @@ export default function TenantAdminDashboard({
   const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
   
   // Course edit & addition forms
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "", isRegistrationOpen: true });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 1, coverImage: "", isRegistrationOpen: true });
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingCourseData, setEditingCourseData] = useState({ 
     title: "", description: "", price: 0, currency: "ج.م", imageFit: "cover", lecturesCount: 1, 
@@ -523,7 +523,7 @@ export default function TenantAdminDashboard({
       const updated = [...courses, courseObj];
       setCourses(updated);
       await db.saveCourses(params.tenant, updated);
-      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 12, coverImage: "", isRegistrationOpen: true });
+      setNewCourse({ title: "", description: "", price: 500, currency: "ج.م", imageFit: "cover", lecturesCount: 1, coverImage: "", isRegistrationOpen: true });
       showAlert(`✅ تم إضافة الدورة التعليمية "${courseObj.title}" بنجاح.`);
     }
   };
@@ -828,7 +828,17 @@ export default function TenantAdminDashboard({
             const optionB = row[2] || "";
             const optionC = row[3] || "";
             const optionD = row[4] || "";
-            const correctOption = Number(row[5]) || 0;
+            
+            let correctOption = 0;
+            // Check if it's Kahoot format (at least 7 columns where 7th is correct answer(s))
+            if (row.length >= 7) {
+              const kahootCorrect = row[6] ? String(row[6]).split(',')[0].trim() : "1";
+              correctOption = Math.max(0, Number(kahootCorrect) - 1);
+            } else {
+              // Legacy format
+              correctOption = Number(row[5]) || 0;
+            }
+
             const lectureNumber = selectedLectureNum;
             
             return {
@@ -1742,7 +1752,7 @@ export default function TenantAdminDashboard({
                                 </select>
 
                                 {(() => {
-                                  const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "" };
+                                  const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "", lectureUrl: "" };
                                   const currentControls = editingCourseData.lectureControls[editingLectureNum] || defaultControls;
                                   const updateControls = (updates: any) => {
                                     setEditingCourseData(prev => ({
@@ -1772,6 +1782,19 @@ export default function TenantAdminDashboard({
                                         <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
                                           <input type="checkbox" checked={currentControls.isTasksOpen} onChange={e => updateControls({ isTasksOpen: e.target.checked })} className="w-4 h-4 text-blue-600 rounded" /> التاسكات
                                         </label>
+                                      </div>
+                                      
+                                      <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                                        <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">رابط الحضور/المحاضرة المخصص لهذه المحاضرة (اختياري):</label>
+                                        <input 
+                                          type="text" 
+                                          value={currentControls.lectureUrl || ""} 
+                                          onChange={e => updateControls({ lectureUrl: e.target.value })} 
+                                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-left mb-2"
+                                          dir="ltr"
+                                          placeholder="https://zoom.us/..."
+                                        />
+                                        <p className="text-[10px] text-slate-500">إذا تركته فارغاً سيتم استخدام رابط البث العام للدورة.</p>
                                       </div>
                                       
                                       {currentControls.isTasksOpen && (
@@ -2030,7 +2053,7 @@ export default function TenantAdminDashboard({
                     onChange={(e) => setAttendanceLectureNum(Number(e.target.value))}
                     className="px-4 py-2 border rounded-xl bg-white dark:bg-slate-800 font-bold"
                   >
-                    {Array.from({ length: courses.find(c => c.id === attendanceCourseId)?.lecturesCount || 12 }).map((_, idx) => (
+                    {Array.from({ length: courses.find(c => c.id === attendanceCourseId)?.lecturesCount || 1 }).map((_, idx) => (
                       <option key={idx + 1} value={idx + 1}>المحاضرة رقم {idx + 1}</option>
                     ))}
                   </select>
@@ -2166,7 +2189,7 @@ export default function TenantAdminDashboard({
                     onChange={(e) => setSelectedLectureNum(Number(e.target.value))}
                     className="px-4 py-2 border rounded-xl bg-white dark:bg-slate-800 font-bold"
                   >
-                    {Array.from({ length: courses.find(c => c.id === selectedCourseId)?.lecturesCount || 12 }).map((_, idx) => (
+                    {Array.from({ length: courses.find(c => c.id === selectedCourseId)?.lecturesCount || 1 }).map((_, idx) => (
                       <option key={idx + 1} value={idx + 1}>المحاضرة رقم {idx + 1}</option>
                     ))}
                   </select>
@@ -2317,7 +2340,7 @@ export default function TenantAdminDashboard({
                     onChange={(e) => setSelectedLectureNum(Number(e.target.value))}
                     className="px-4 py-2 border rounded-xl bg-white dark:bg-slate-800 font-bold"
                   >
-                    {Array.from({ length: courses.find(c => c.id === selectedCourseId)?.lecturesCount || 12 }).map((_, idx) => (
+                    {Array.from({ length: courses.find(c => c.id === selectedCourseId)?.lecturesCount || 1 }).map((_, idx) => (
                       <option key={idx + 1} value={idx + 1}>المحاضرة رقم {idx + 1}</option>
                     ))}
                   </select>
@@ -2336,7 +2359,7 @@ export default function TenantAdminDashboard({
                     className="hidden"
                   />
                 </label>
-                <span className="text-[10px] text-slate-400 mt-1">التنسيق المقبول: السؤال, الخيار أ, الخيار ب, الخيار ج, الخيار د, رقم الخيار الصحيح (0-3)</span>
+                <span className="text-[10px] text-slate-400 mt-1">التنسيق المقبول: ملفات Kahoot أو التنسيق العادي (السؤال, الخيار 1, 2, 3, 4)</span>
               </div>
             </div>
 

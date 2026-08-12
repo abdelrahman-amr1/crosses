@@ -105,7 +105,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
     loadData();
   }, [selectedLecture, course.id, tenant, studentName]);
 
-  const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "" };
+  const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "", lectureUrl: "" };
   const currentControls = course.lectureControls?.[selectedLecture] || defaultControls;
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
       await db.saveAttendance(tenant, studentName, course.id, selectedLecture);
       setAttendanceStatus(prev => ({ ...prev, [selectedLecture]: true }));
       alert(`✅ تم تسجيل حضورك بنجاح في قاعدة بيانات المنصة! سيتم تحويلك الآن إلى البث المباشر/رابط الدرس.`);
-      window.open(course.lectureUrl || "https://zoom.us/test", "_blank");
+      window.open(currentControls.lectureUrl || course.lectureUrl || "https://zoom.us/test", "_blank");
     } catch (error) {
       alert("حدث خطأ في الاتصال بالخادم لتسجيل الحضور.");
     } finally {
@@ -317,7 +317,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                         </span>
                         <div className="flex flex-wrap gap-4 justify-center">
                           <button
-                            onClick={() => window.open(course.lectureUrl || "https://zoom.us/test", "_blank")}
+                            onClick={() => window.open(currentControls.lectureUrl || course.lectureUrl || "https://zoom.us/test", "_blank")}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl font-bold transition-all shadow-lg shadow-blue-500/20"
                           >
                             الدخول لرابط البث المباشر (المحاضرة) 🎥

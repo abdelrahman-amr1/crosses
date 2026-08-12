@@ -98,6 +98,7 @@ export interface LectureControl {
   isTasksOpen: boolean;
   taskDescription: string;
   taskFileUrl: string;
+  lectureUrl?: string; // رابط الحضور/المحاضرة المخصص لكل محاضرة
 }
 
 export interface StudentTask {
