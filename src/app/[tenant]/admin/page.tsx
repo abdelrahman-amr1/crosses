@@ -710,7 +710,15 @@ export default function TenantAdminDashboard({
 
           const newCards: Flashcard[] = parsed.map((row, idx) => {
             const question = row[0] || "";
-            const answer = row[1] || "";
+            let answer = row[1] || "";
+            
+            // Check if it's Kahoot format (at least 7 columns)
+            if (row.length >= 7) {
+              const kahootCorrect = row[6] ? String(row[6]).split(',')[0].trim() : "1";
+              const correctIndex = Math.max(1, Number(kahootCorrect)); // 1-based (Option 1 is at index 1)
+              answer = row[correctIndex] || row[1] || "";
+            }
+            
             const lectureNumber = selectedLectureNum;
             
             return {
