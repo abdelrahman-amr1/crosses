@@ -131,13 +131,14 @@ export default function TenantAdminDashboard({
     async function loadData() {
       try {
         const data = await db.getAdminDashboardData(params.tenant);
+        const prog = await db.getTenantProgress(params.tenant);
+        
         let apps = data.applications;
         let stds = data.students;
         let crs = data.courses;
         let fcs = data.flashcards;
         let qzs = data.quizzes;
         let insts = data.institutions;
-        let prog = data.tenantProgress;
         
         // Check if client-side localStorage migration is needed
         if (typeof window !== "undefined") {
@@ -268,10 +269,11 @@ export default function TenantAdminDashboard({
     const fetchData = async () => {
       try {
         const data = await db.getAdminDashboardData(params.tenant);
+        const prog = await db.getTenantProgress(params.tenant);
         setApplications(data.applications);
         setStudents(data.students);
         setCourses(data.courses);
-        setTenantProgress(data.tenantProgress);
+        setTenantProgress(prog);
       } catch (err) {
         console.error("Error polling admin data:", err);
       }

@@ -196,22 +196,18 @@ export const db = {
       { query: `SELECT id, full_name as "fullName", national_id as "nationalId", phone, course_id as "courseId", photo_url as "photoUrl", status, created_at as "createdAt" FROM applications WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY created_at DESC;`, values: [tenant] },
       { query: `SELECT id, name, email, course_id as "courseId", avatar_url as "avatarUrl", national_id as "nationalId", phone, roll_number as "rollNumber", whatsapp_group_url as "whatsappGroupUrl", lecture_url as "lectureUrl" FROM students WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY name ASC;`, values: [tenant] },
       { query: `SELECT c.id, c.title, c.description, c.lectures_count as "lecturesCount", c.price, COALESCE(c.currency, 'ج.م') as "currency", c.cover_image as "coverImage", COALESCE(c.image_fit, 'cover') as "imageFit", c.lecture_url as "lectureUrl", c.whatsapp_group_url as "whatsappGroupUrl", COALESCE(c.is_attendance_open, true) as "isAttendanceOpen", COALESCE(c.is_flashcards_open, true) as "isFlashcardsOpen", COALESCE(c.is_quiz_open, true) as "isQuizOpen", COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen", COALESCE(c.is_registration_open, true) as "isRegistrationOpen", c.lecture_controls as "lectureControls" FROM courses c WHERE c.institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY c.created_at DESC;`, values: [tenant] },
-      { query: `SELECT id, course_id as "courseId", lecture_number as "lectureNumber", question, answer, difficulty FROM flashcards WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1);`, values: [tenant] },
-      { query: `SELECT id, course_id as "courseId", lecture_number as "lectureNumber", question, options, correct_option as "correctOption" FROM quizzes WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1);`, values: [tenant] },
-      { query: `SELECT id, name, subdomain, logo_url as "logoUrl", created_at as "createdAt", admin_email as "adminEmail", admin_password as "adminPassword" FROM institutions ORDER BY created_at DESC;` },
-      { query: `SELECT * FROM tenant_progress WHERE tenant_id = $1`, values: [tenant] }
+      { query: `SELECT f.id, f.course_id as "courseId", f.lecture_number as "lectureNumber", f.question, f.answer, f.difficulty FROM flashcards f JOIN courses c ON f.course_id = c.id WHERE c.institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1);`, values: [tenant] },
+      { query: `SELECT q.id, q.course_id as "courseId", q.lecture_number as "lectureNumber", q.question, q.options, q.correct_option as "correctOption" FROM quizzes q JOIN courses c ON q.course_id = c.id WHERE c.institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1);`, values: [tenant] },
+      { query: `SELECT id, name, subdomain, logo_url as "logoUrl", created_at as "createdAt", admin_email as "adminEmail", admin_password as "adminPassword" FROM institutions ORDER BY created_at DESC;` }
     ];
     const results = await runQueries(queries);
-    const progressRow = results[6].rows[0];
-    const progress = progressRow ? { attendance: progressRow.attendance_count, quiz: progressRow.quiz_count, task: progressRow.task_count } : { attendance: 0, quiz: 0, task: 0 };
     return {
       applications: results[0].rows,
       students: results[1].rows,
       courses: results[2].rows,
       flashcards: results[3].rows,
       quizzes: results[4].rows,
-      institutions: results[5].rows,
-      tenantProgress: progress
+      institutions: results[5].rows
     };
   },
   
