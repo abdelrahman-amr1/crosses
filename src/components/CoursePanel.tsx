@@ -28,10 +28,11 @@ interface CoursePanelProps {
   course: Course;
   tenant: string;
   studentName: string;
+  studentPhone: string;
   onBack: () => void;
 }
 
-export default function CoursePanel({ course, tenant, studentName, onBack }: CoursePanelProps) {
+export default function CoursePanel({ course, tenant, studentName, studentPhone, onBack }: CoursePanelProps) {
   const [selectedLecture, setSelectedLecture] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<string>("attendance");
   
@@ -616,7 +617,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                                              base64 = await compressBase64(base64, 1200, 1200, 0.8);
                                           }
                                           try {
-                                             await db.saveStudentTask(course.id, selectedLecture, studentName, base64);
+                                             await db.saveStudentTask(course.id, selectedLecture, studentPhone, base64);
                                              setTaskUploaded(true);
                                              alert("✅ تم تسليم التاسك بنجاح!");
                                           } catch(err) { alert("حدث خطأ أثناء التسليم"); }

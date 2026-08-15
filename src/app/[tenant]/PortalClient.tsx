@@ -356,6 +356,7 @@ export default function TenantStudentPortal({
           course={selectedCourse}
           tenant={params.tenant}
           studentName={student.name}
+          studentPhone={student.phone}
           onBack={() => setSelectedCourse(null)}
         />
       );
