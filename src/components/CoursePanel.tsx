@@ -588,7 +588,7 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                      <p className="text-slate-600 dark:text-slate-400 mb-6 font-bold leading-relaxed">{currentControls.taskDescription}</p>
                      
                      {currentControls.taskFileUrl && (
-                       <a href={currentControls.taskFileUrl} target="_blank" rel="noopener noreferrer" className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-4 py-3 rounded-xl font-bold flex gap-2 items-center mb-8 border border-blue-100 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                       <a href={currentControls.taskFileUrl} download={`task_lecture_${selectedLecture}`} target="_blank" rel="noopener noreferrer" className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-4 py-3 rounded-xl font-bold flex gap-2 items-center mb-8 border border-blue-100 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
                          <FileText size={20} /> تحميل ملف التاسك
                        </a>
                      )}
