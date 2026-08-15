@@ -130,15 +130,14 @@ export default function TenantAdminDashboard({
   useEffect(() => {
     async function loadData() {
       try {
-        let [apps, stds, crs, fcs, qzs, insts, prog] = await Promise.all([
-          db.getApplications(params.tenant),
-          db.getStudents(params.tenant),
-          db.getCourses(params.tenant),
-          db.getFlashcards(params.tenant),
-          db.getQuizzes(params.tenant),
-          db.getInstitutions(),
-          db.getTenantProgress(params.tenant)
-        ]);
+        const data = await db.getAdminDashboardData(params.tenant);
+        let apps = data.applications;
+        let stds = data.students;
+        let crs = data.courses;
+        let fcs = data.flashcards;
+        let qzs = data.quizzes;
+        let insts = data.institutions;
+        let prog = data.tenantProgress;
         
         // Check if client-side localStorage migration is needed
         if (typeof window !== "undefined") {
@@ -242,7 +241,7 @@ export default function TenantAdminDashboard({
         setFlashcards(fcs);
         setQuizzes(qzs);
         
-        const inst = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
+        const inst = insts.find((i: Institution) => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
         if (inst) {
           setCurrentInstitution(inst);
         }
@@ -268,23 +267,17 @@ export default function TenantAdminDashboard({
 
     const fetchData = async () => {
       try {
-        const [apps, stds, crs, prog] = await Promise.all([
-          db.getApplications(params.tenant),
-          db.getStudents(params.tenant),
-          db.getCourses(params.tenant),
-          db.getTenantProgress(params.tenant)
-        ]);
-
-        setApplications(apps);
-        setStudents(stds);
-        setCourses(crs);
-        setTenantProgress(prog);
+        const data = await db.getAdminDashboardData(params.tenant);
+        setApplications(data.applications);
+        setStudents(data.students);
+        setCourses(data.courses);
+        setTenantProgress(data.tenantProgress);
       } catch (err) {
         console.error("Error polling admin data:", err);
       }
     };
 
-    const interval = setInterval(fetchData, 4000); // poll every 4 seconds
+    const interval = setInterval(fetchData, 20000); // poll every 20 seconds
 
     return () => clearInterval(interval);
   }, [isAdminLoggedIn, params.tenant]);
@@ -309,7 +302,7 @@ export default function TenantAdminDashboard({
 
     fetchData(); // initial fetch
 
-    const interval = setInterval(fetchData, 4000); // poll every 4 seconds
+    const interval = setInterval(fetchData, 20000); // poll every 20 seconds
 
     return () => clearInterval(interval);
   }, [activeTab, attendanceCourseId, attendanceLectureNum, params.tenant]);

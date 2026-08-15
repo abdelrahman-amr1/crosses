@@ -50,10 +50,10 @@ export default function TenantStudentPortal({
     // Initial load
     db.getCourses(params.tenant).then(setCourses).catch(console.error);
 
-    // Poll courses every 4 seconds
+    // Poll courses every 20 seconds
     const interval = setInterval(() => {
       db.getCourses(params.tenant).then(setCourses).catch(console.error);
-    }, 4000);
+    }, 20000);
 
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
@@ -73,29 +73,28 @@ export default function TenantStudentPortal({
   useEffect(() => {
     if (!isLoggedIn || !student?.phone) return;
 
-    const fetchData = () => {
-      Promise.all([
-        db.getStudentsByPhone(params.tenant, student.phone),
-        db.getApplicationsByPhone(params.tenant, student.phone),
-        db.getCourses(params.tenant)
-      ]).then(([records, apps, syncedCourses]) => {
-        setStudentRecords(records);
-        setMyApplications(apps);
-        setCourses(syncedCourses);
+    const fetchData = async () => {
+      try {
+        const data = await db.getStudentDashboardData(params.tenant, student.phone);
+        setStudentRecords(data.records);
+        setMyApplications(data.applications);
+        setCourses(data.courses);
         
         // Find matching record for currently active course if any, or default to the first one
-        const activeRecord = records.find(r => r.courseId === student.courseId) || records[0];
+        const activeRecord = data.records.find((r: Student) => r.courseId === student.courseId) || data.records[0];
         if (activeRecord) {
           setStudent(activeRecord);
           setAvatarPreview(activeRecord.avatarUrl || "");
           localStorage.setItem(`loggedin_student_${params.tenant}`, JSON.stringify(activeRecord));
         }
-      }).catch(console.error);
+      } catch (err) {
+        console.error(err);
+      }
     };
 
     fetchData(); // initial fetch
 
-    const interval = setInterval(fetchData, 4000); // poll every 4 seconds
+    const interval = setInterval(fetchData, 20000); // poll every 20 seconds
 
     return () => clearInterval(interval);
   }, [isLoggedIn, student?.phone, params.tenant]);

@@ -22,13 +22,25 @@ function getPool() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, values } = body;
+    const client = getPool();
 
+    // Handle bulk queries
+    if (body.queries && Array.isArray(body.queries)) {
+      const results = [];
+      for (const q of body.queries) {
+        if (!q.query) continue;
+        const res = await client.query(q.query, q.values || []);
+        results.push({ rows: res.rows, rowCount: res.rowCount });
+      }
+      return NextResponse.json({ results });
+    }
+
+    // Handle single query (legacy support)
+    const { query, values } = body;
     if (!query) {
       return NextResponse.json({ error: "Missing query parameter" }, { status: 400 });
     }
 
-    const client = getPool();
     const result = await client.query(query, values || []);
     
     return NextResponse.json({ rows: result.rows, rowCount: result.rowCount });

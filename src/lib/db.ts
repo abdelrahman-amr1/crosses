@@ -154,7 +154,81 @@ async function runQuery(query: string, values?: any[]) {
   }
 }
 
+async function runQueries(queries: {query: string, values?: any[]}[]) {
+  if (typeof window !== "undefined") {
+    const res = await fetch("/api/db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ queries })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Queries failed");
+    }
+    const data = await res.json();
+    return data.results;
+  } else {
+    const { Pool } = await import("pg");
+    const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
+    const globalAny = globalThis as any;
+    if (!globalAny.dbPool) {
+      globalAny.dbPool = new Pool({
+        connectionString,
+        ssl: { rejectUnauthorized: false },
+        max: 3,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000
+      });
+    }
+    const pool = globalAny.dbPool;
+    const results = [];
+    for (const q of queries) {
+      const result = await pool.query(q.query, q.values || []);
+      results.push({ rows: result.rows, rowCount: result.rowCount });
+    }
+    return results;
+  }
+}
+
 export const db = {
+  getAdminDashboardData: async (tenant: string) => {
+    const queries = [
+      { query: `SELECT id, full_name as "fullName", national_id as "nationalId", phone, course_id as "courseId", photo_url as "photoUrl", status, created_at as "createdAt" FROM applications WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY created_at DESC;`, values: [tenant] },
+      { query: `SELECT id, name, email, course_id as "courseId", avatar_url as "avatarUrl", national_id as "nationalId", phone, roll_number as "rollNumber", whatsapp_group_url as "whatsappGroupUrl", lecture_url as "lectureUrl" FROM students WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY name ASC;`, values: [tenant] },
+      { query: `SELECT c.id, c.title, c.description, c.lectures_count as "lecturesCount", c.price, COALESCE(c.currency, 'ج.م') as "currency", c.cover_image as "coverImage", COALESCE(c.image_fit, 'cover') as "imageFit", c.lecture_url as "lectureUrl", c.whatsapp_group_url as "whatsappGroupUrl", COALESCE(c.is_attendance_open, true) as "isAttendanceOpen", COALESCE(c.is_flashcards_open, true) as "isFlashcardsOpen", COALESCE(c.is_quiz_open, true) as "isQuizOpen", COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen", COALESCE(c.is_registration_open, true) as "isRegistrationOpen", c.lecture_controls as "lectureControls" FROM courses c WHERE c.institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY c.created_at DESC;`, values: [tenant] },
+      { query: `SELECT id, course_id as "courseId", lecture_number as "lectureNumber", question, answer, difficulty FROM flashcards WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1);`, values: [tenant] },
+      { query: `SELECT id, course_id as "courseId", lecture_number as "lectureNumber", question, options, correct_option as "correctOption" FROM quizzes WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1);`, values: [tenant] },
+      { query: `SELECT id, name, subdomain, logo_url as "logoUrl", created_at as "createdAt", admin_email as "adminEmail", admin_password as "adminPassword" FROM institutions ORDER BY created_at DESC;` },
+      { query: `SELECT * FROM tenant_progress WHERE tenant_id = $1`, values: [tenant] }
+    ];
+    const results = await runQueries(queries);
+    const progressRow = results[6].rows[0];
+    const progress = progressRow ? { attendance: progressRow.attendance_count, quiz: progressRow.quiz_count, task: progressRow.task_count } : { attendance: 0, quiz: 0, task: 0 };
+    return {
+      applications: results[0].rows,
+      students: results[1].rows,
+      courses: results[2].rows,
+      flashcards: results[3].rows,
+      quizzes: results[4].rows,
+      institutions: results[5].rows,
+      tenantProgress: progress
+    };
+  },
+  
+  getStudentDashboardData: async (tenant: string, phone: string) => {
+    const queries = [
+      { query: `SELECT id, name, email, course_id as "courseId", avatar_url as "avatarUrl", national_id as "nationalId", phone, roll_number as "rollNumber", whatsapp_group_url as "whatsappGroupUrl", lecture_url as "lectureUrl" FROM students WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) AND phone = $2;`, values: [tenant, phone] },
+      { query: `SELECT id, full_name as "fullName", national_id as "nationalId", phone, course_id as "courseId", photo_url as "photoUrl", status, created_at as "createdAt" FROM applications WHERE institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) AND phone = $2;`, values: [tenant, phone] },
+      { query: `SELECT c.id, c.title, c.description, c.lectures_count as "lecturesCount", c.price, COALESCE(c.currency, 'ج.م') as "currency", c.cover_image as "coverImage", COALESCE(c.image_fit, 'cover') as "imageFit", c.lecture_url as "lectureUrl", c.whatsapp_group_url as "whatsappGroupUrl", COALESCE(c.is_attendance_open, true) as "isAttendanceOpen", COALESCE(c.is_flashcards_open, true) as "isFlashcardsOpen", COALESCE(c.is_quiz_open, true) as "isQuizOpen", COALESCE(c.is_evaluation_open, true) as "isEvaluationOpen", COALESCE(c.is_registration_open, true) as "isRegistrationOpen", c.lecture_controls as "lectureControls" FROM courses c WHERE c.institution_id = (SELECT id FROM institutions WHERE subdomain = $1 LIMIT 1) ORDER BY c.created_at DESC;`, values: [tenant] }
+    ];
+    const results = await runQueries(queries);
+    return {
+      records: results[0].rows,
+      applications: results[1].rows,
+      courses: results[2].rows
+    };
+  },
+
   // Institutions (المراكز والمدارس)
   getInstitutions: async (): Promise<Institution[]> => {
     const res = await runQuery(`
