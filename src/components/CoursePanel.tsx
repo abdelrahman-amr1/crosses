@@ -22,6 +22,7 @@ import {
 import { db, Course, Flashcard, QuizQuestion, SelfEvaluation } from "@/lib/db";
 import FlashcardGame from "./FlashcardGame";
 import CopyProtection from "./CopyProtection";
+import { compressBase64 } from "@/lib/imageCompressor";
 
 interface CoursePanelProps {
   course: Course;
@@ -610,7 +611,10 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
                                        setTaskUploading(true);
                                        const reader = new FileReader();
                                        reader.onload = async (event) => {
-                                          const base64 = event.target?.result as string;
+                                          let base64 = event.target?.result as string;
+                                          if (base64.startsWith("data:image")) {
+                                             base64 = await compressBase64(base64, 1200, 1200, 0.8);
+                                          }
                                           try {
                                              await db.saveStudentTask(course.id, selectedLecture, studentName, base64);
                                              setTaskUploaded(true);
