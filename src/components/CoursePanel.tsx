@@ -126,6 +126,19 @@ export default function CoursePanel({ course, tenant, studentName, onBack }: Cou
     }
   }, [currentControls, activeTab]);
 
+  // Handle Quiz Countdown
+  useEffect(() => {
+    if (quizCountdown !== null) {
+      if (quizCountdown > 0) {
+        const timer = setTimeout(() => setQuizCountdown(quizCountdown - 1), 1000);
+        return () => clearTimeout(timer);
+      } else {
+        setQuizStarted(true);
+        setQuizCountdown(null);
+      }
+    }
+  }, [quizCountdown]);
+
   // Handle Attendance via DB
   const handleAttend = async () => {
     setIsAttending(true);
