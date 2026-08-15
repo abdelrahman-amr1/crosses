@@ -295,9 +295,15 @@ export default function TenantAdminDashboard({
         db.getAllQuizScoresForLecture(params.tenant, attendanceCourseId, attendanceLectureNum),
         db.getStudentTasks(attendanceCourseId, attendanceLectureNum)
       ]).then(([records, evals, scores, tasks]) => {
+        const normalizedScores: Record<string, number> = {};
+        for (const [k, v] of Object.entries(scores)) normalizedScores[k.trim()] = v;
+        
+        const normalizedEvals: Record<string, any> = {};
+        for (const [k, v] of Object.entries(evals)) normalizedEvals[k.trim()] = v;
+        
         setAttendanceRecords(records);
-        setAttendanceEvals(evals);
-        setAttendanceScores(scores);
+        setAttendanceEvals(normalizedEvals);
+        setAttendanceScores(normalizedScores);
         setStudentTasks(tasks);
       }).catch(console.error);
     };
@@ -2084,8 +2090,9 @@ export default function TenantAdminDashboard({
                     </thead>
                     <tbody>
                       {attendanceRecords.map((record) => {
-                        const studentScore = attendanceScores[record.studentName];
-                        const studentEval = attendanceEvals[record.studentName];
+                        const trimmedName = record.studentName.trim();
+                        const studentScore = attendanceScores[trimmedName];
+                        const studentEval = attendanceEvals[trimmedName];
                         
                         return (
                           <tr key={record.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
@@ -2139,6 +2146,7 @@ export default function TenantAdminDashboard({
                   <table className="w-full text-right text-sm">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">اسم المتدرب</th>
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المتدرب</th>
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المحاضرة</th>
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">الملف المرفوع</th>
@@ -2146,18 +2154,22 @@ export default function TenantAdminDashboard({
                       </tr>
                     </thead>
                     <tbody>
-                      {studentTasks.map((task) => (
-                        <tr key={task.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="p-4 font-bold text-slate-800 dark:text-slate-200" dir="ltr">{task.studentPhone}</td>
-                          <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{task.lectureNumber}</td>
-                          <td className="p-4">
-                            <a href={task.fileUrl} download={`student_task_${task.studentPhone}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold underline hover:text-blue-700">
-                              عرض الملف
-                            </a>
-                          </td>
-                          <td className="p-4 text-slate-600 dark:text-slate-400 text-xs" dir="ltr">{new Date(task.createdAt).toLocaleString("ar-EG")}</td>
-                        </tr>
-                      ))}
+                      {studentTasks.map((task) => {
+                        const student = students.find(s => s.phone === task.studentPhone);
+                        return (
+                          <tr key={task.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{student ? student.name : "غير معروف"}</td>
+                            <td className="p-4 font-bold text-slate-800 dark:text-slate-200" dir="ltr">{task.studentPhone}</td>
+                            <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{task.lectureNumber}</td>
+                            <td className="p-4">
+                              <a href={task.fileUrl} download={`student_task_${task.studentPhone}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold underline hover:text-blue-700">
+                                عرض الملف
+                              </a>
+                            </td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 text-xs" dir="ltr">{new Date(task.createdAt).toLocaleString("ar-EG")}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
