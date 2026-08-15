@@ -2154,7 +2154,7 @@ export default function TenantAdminDashboard({
                         <tr key={task.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="p-4 font-bold text-slate-800 dark:text-slate-200" dir="ltr">{task.studentPhone}</td>
                           <td className="p-4">
-                            <a href={task.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold underline hover:text-blue-700">
+                            <a href={task.fileUrl} download={`student_task_${task.studentPhone}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold underline hover:text-blue-700">
                               عرض الملف
                             </a>
                           </td>
