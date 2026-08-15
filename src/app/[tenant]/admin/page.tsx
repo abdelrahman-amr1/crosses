@@ -2145,6 +2145,7 @@ export default function TenantAdminDashboard({
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المتدرب</th>
+                        <th className="p-4 font-bold text-slate-500 dark:text-slate-400">رقم المحاضرة</th>
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">الملف المرفوع</th>
                         <th className="p-4 font-bold text-slate-500 dark:text-slate-400">وقت الرفع</th>
                       </tr>
@@ -2153,6 +2154,7 @@ export default function TenantAdminDashboard({
                       {studentTasks.map((task) => (
                         <tr key={task.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="p-4 font-bold text-slate-800 dark:text-slate-200" dir="ltr">{task.studentPhone}</td>
+                          <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{task.lectureNumber}</td>
                           <td className="p-4">
                             <a href={task.fileUrl} download={`student_task_${task.studentPhone}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold underline hover:text-blue-700">
                               عرض الملف

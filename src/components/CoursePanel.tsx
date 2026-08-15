@@ -99,13 +99,13 @@ export default function CoursePanel({ course, tenant, studentName, studentPhone,
 
         // Load tasks
         const tasks = await db.getStudentTasks(course.id, selectedLecture);
-        setTaskUploaded(tasks.some(t => t.studentPhone === studentName));
+        setTaskUploaded(tasks.some(t => t.studentPhone === studentPhone || t.studentPhone === studentName));
       } catch (err) {
         console.error("Failed to load lecture data:", err);
       }
     }
     loadData();
-  }, [selectedLecture, course.id, tenant, studentName]);
+  }, [selectedLecture, course.id, tenant, studentName, studentPhone]);
 
   const defaultControls = { isAttendanceOpen: true, isFlashcardsOpen: true, isQuizOpen: true, isEvaluationOpen: true, isTasksOpen: false, taskDescription: "", taskFileUrl: "", lectureUrl: "" };
   const currentControls = course.lectureControls?.[selectedLecture] || defaultControls;
