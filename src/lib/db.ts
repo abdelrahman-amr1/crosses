@@ -663,6 +663,28 @@ export const db = {
     if (instRes.rows.length === 0) throw new Error("Institution not found");
     const instId = instRes.rows[0].id;
 
+    // 2. Check if already exists in students table for this course
+    const existingStudentRes = await runQuery(`
+      SELECT id FROM students WHERE institution_id = $1 AND phone = $2 AND course_id = $3 LIMIT 1;
+    `, [instId, app.phone, app.courseId]);
+    if (existingStudentRes.rows.length > 0) {
+      throw new Error("الطالب مسجل في هذه الدورة بالفعل!");
+    }
+
+    // 3. Check if an application already exists for this course
+    const existingAppRes = await runQuery(`
+      SELECT status FROM applications WHERE institution_id = $1 AND phone = $2 AND course_id = $3 LIMIT 1;
+    `, [instId, app.phone, app.courseId]);
+    
+    if (existingAppRes.rows.length > 0) {
+      const status = existingAppRes.rows[0].status;
+      if (status === 'pending') {
+        throw new Error("يوجد طلب التحاق قيد المراجعة بالفعل برقم الهاتف هذا لنفس الدورة.");
+      } else if (status === 'approved') {
+        throw new Error("أنت مسجل في هذه الدورة بالفعل وتم قبول طلبك مسبقاً.");
+      }
+    }
+
     const res = await runQuery(`
       INSERT INTO applications (institution_id, full_name, national_id, phone, course_id, photo_url, status)
       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
