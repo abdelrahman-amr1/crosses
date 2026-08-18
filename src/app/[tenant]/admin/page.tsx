@@ -262,7 +262,7 @@ export default function TenantAdminDashboard({
     }
   }, [params.tenant]);
 
-  // Poll dynamic admin data (applications, students, courses, progress) when logged in
+  // Fetch dynamic admin data (applications, students, courses, progress) when logged in
   useEffect(() => {
     if (!isAdminLoggedIn) return;
 
@@ -275,16 +275,19 @@ export default function TenantAdminDashboard({
         setCourses(data.courses);
         setTenantProgress(prog);
       } catch (err) {
-        console.error("Error polling admin data:", err);
+        console.error("Error fetching admin data:", err);
       }
     };
 
-    const interval = setInterval(fetchData, 20000); // poll every 20 seconds
+    fetchData();
 
-    return () => clearInterval(interval);
+    // Refetch when tab regains focus
+    const onFocus = () => fetchData();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [isAdminLoggedIn, params.tenant]);
 
-  // Load and poll attendance, evaluations, scores, and tasks when tab or filters change
+  // Load attendance, evaluations, scores, and tasks when tab or filters change
   useEffect(() => {
     if (activeTab !== "attendance" || !attendanceCourseId) return;
 
@@ -308,12 +311,13 @@ export default function TenantAdminDashboard({
       }).catch(console.error);
     };
 
-    fetchData(); // initial fetch
+    fetchData(); // initial fetch on change
 
-    const interval = setInterval(fetchData, 20000); // poll every 20 seconds
-
-    return () => clearInterval(interval);
+    const onFocus = () => fetchData();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [activeTab, attendanceCourseId, attendanceLectureNum, params.tenant]);
+
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();

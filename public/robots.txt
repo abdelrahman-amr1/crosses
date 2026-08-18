@@ -1,0 +1,35 @@
+# Robots.txt for Courses SaaS Platform
+
+# Block aggressive AI scrapers and unwanted bots
+User-agent: Baiduspider
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Scrapy
+Disallow: /
+
+# General rules for legitimate search engines
+User-agent: *
+Disallow: /api/
+Disallow: /*/admin
+Disallow: /super-admin

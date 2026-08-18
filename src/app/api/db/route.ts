@@ -21,6 +21,18 @@ function getPool() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Protection against external arbitrary SQL execution
+    const appClientHeader = req.headers.get("x-app-client");
+    const referer = req.headers.get("referer") || "";
+    const host = req.headers.get("host") || "";
+
+    if (!appClientHeader && (!referer || !referer.includes(host))) {
+      return NextResponse.json(
+        { error: "Unauthorized API access" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const client = getPool();
 
@@ -35,7 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ results });
     }
 
-    // Handle single query (legacy support)
+    // Handle single query
     const { query, values } = body;
     if (!query) {
       return NextResponse.json({ error: "Missing query parameter" }, { status: 400 });
@@ -49,3 +61,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Database execution failed" }, { status: 500 });
   }
 }
+

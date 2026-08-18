@@ -123,7 +123,8 @@ async function runQuery(query: string, values?: any[]) {
     const res = await fetch("/api/db", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-app-client": "courses-saas-internal"
       },
       body: JSON.stringify({ query, values })
     });
@@ -158,7 +159,10 @@ async function runQueries(queries: {query: string, values?: any[]}[]) {
   if (typeof window !== "undefined") {
     const res = await fetch("/api/db", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "x-app-client": "courses-saas-internal"
+      },
       body: JSON.stringify({ queries })
     });
     if (!res.ok) {
@@ -167,7 +171,8 @@ async function runQueries(queries: {query: string, values?: any[]}[]) {
     }
     const data = await res.json();
     return data.results;
-  } else {
+  }
+ else {
     const { Pool } = await import("pg");
     const connectionString = "postgres://postgres.vidahzporaivvfurnesx:ilVhbRS2vOEE1NTa@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
     const globalAny = globalThis as any;

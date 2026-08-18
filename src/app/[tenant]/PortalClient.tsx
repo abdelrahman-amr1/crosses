@@ -38,7 +38,7 @@ export default function TenantStudentPortal({
   const [modalError, setModalError] = useState("");
   const [modalSaving, setModalSaving] = useState(false);
 
-  // Load configuration and courses on mount, and poll courses every 4 seconds
+  // Load configuration and courses on mount
   useEffect(() => {
     db.getInstitutions().then(insts => {
       const current = insts.find(i => i.subdomain.toLowerCase() === params.tenant.toLowerCase());
@@ -50,11 +50,6 @@ export default function TenantStudentPortal({
     // Initial load
     db.getCourses(params.tenant).then(setCourses).catch(console.error);
 
-    // Poll courses every 20 seconds
-    const interval = setInterval(() => {
-      db.getCourses(params.tenant).then(setCourses).catch(console.error);
-    }, 20000);
-
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem(`loggedin_student_${params.tenant}`);
       if (savedUser) {
@@ -65,11 +60,9 @@ export default function TenantStudentPortal({
         setAvatarPreview(studentInfo.avatarUrl || "");
       }
     }
-
-    return () => clearInterval(interval);
   }, [params.tenant]);
 
-  // Load and poll student records and applications when logged in
+  // Load student records and applications when logged in
   useEffect(() => {
     if (!isLoggedIn || !student?.phone) return;
 
@@ -92,12 +85,14 @@ export default function TenantStudentPortal({
       }
     };
 
-    fetchData(); // initial fetch
+    fetchData(); // initial fetch on mount/login
 
-    const interval = setInterval(fetchData, 20000); // poll every 20 seconds
-
-    return () => clearInterval(interval);
+    // Refresh data when user switches back to this window tab
+    const onFocus = () => fetchData();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [isLoggedIn, student?.phone, params.tenant]);
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
